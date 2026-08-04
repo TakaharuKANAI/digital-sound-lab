@@ -3,16 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MIDIを触って理解する — メッセージ・CC・ADSR</title>
+<title>MIDIを触って理解する — Note On/Off・ベロシティ・CC</title>
 <style>
   :root {
     --bg: #FFFFFF;
     --ink: #1F2430;
     --muted: #5C6270;
-    --card: #F2F4F8;
-    --border: #D8DCE4;
-    --teal: #0D9488;
-    --teal-soft: #CCFBF1;
+    --card: #F1F5FB;
+    --border: #D6DEEA;
+    --accent: #2563EB;
+    --accent-soft: #DBEAFE;
     --orange: #D97706;
     --mono: "SFMono-Regular", "Consolas", "Menlo", monospace;
     --jp: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
@@ -22,27 +22,27 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
-  body { font-family: var(--jp); color: var(--ink); background: var(--bg); line-height: 1.7; padding-bottom: 130px; }
+  body { font-family: var(--jp); color: var(--ink); background: var(--bg); line-height: 1.7; padding-bottom: 48px; }
   main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
   header.hero { padding: 72px 24px 48px; max-width: 1080px; margin: 0 auto; }
-  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--teal); text-transform: uppercase; margin-bottom: 14px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--accent); text-transform: uppercase; margin-bottom: 14px; }
   h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: 0.01em; line-height: 1.3; }
-  h1 .accent { color: var(--teal); }
+  h1 .accent { color: var(--accent); }
   .lede { margin-top: 16px; font-size: 16px; color: var(--muted); max-width: 46em; }
   .lede strong { color: var(--ink); }
 
   section { padding: 48px 0; border-top: 1px solid var(--border); }
   h2 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
-  .sub { color: var(--teal); font-size: 14px; font-style: italic; margin-bottom: 24px; }
+  .sub { color: var(--accent); font-size: 14px; font-style: italic; margin-bottom: 24px; }
   h3 { font-size: 15px; font-weight: 700; margin: 20px 0 8px; }
   p.note { font-size: 13px; color: var(--muted); }
   .kbd-hint { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--muted); background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px; }
-  .kbd-hint b { font-family: var(--mono); color: var(--teal); letter-spacing: .12em; }
+  .kbd-hint b { font-family: var(--mono); color: var(--accent); letter-spacing: .12em; }
 
   .bytes-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0 10px; }
   .byte { flex: 1 1 200px; border: 2px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--card); }
-  .byte.status { border-color: var(--teal); background: var(--teal-soft); }
+  .byte.status { border-color: var(--accent); background: var(--accent-soft); }
   .byte .hex { font-family: var(--mono); font-size: 26px; font-weight: 700; }
   .byte .hex .n { color: var(--orange); }
   .byte .label { font-size: 13px; font-weight: 700; margin-top: 4px; }
@@ -53,39 +53,44 @@
   @media (max-width: 760px) { .demo-grid { grid-template-columns: 1fr; } }
   .ctl { margin-bottom: 16px; }
   .ctl label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
-  .ctl label .val { font-family: var(--mono); color: var(--teal); }
-  input[type="range"] { width: 100%; accent-color: var(--teal); height: 28px; }
-  button { font-family: var(--jp); font-size: 14px; font-weight: 700; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--teal); background: var(--teal); color: #fff; cursor: pointer; }
-  button:focus-visible, input:focus-visible, .cell:focus-visible, .dest:focus-visible, .wave-btn:focus-visible, .key:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  .ctl label .val { font-family: var(--mono); color: var(--accent); }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; }
+  button { font-family: var(--jp); font-size: 14px; font-weight: 700; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); }
+  button:focus-visible, input:focus-visible, .cell:focus-visible, .dest:focus-visible, .gm-btn:focus-visible, .key:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
   button:active { transform: translateY(1px); }
   button[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); }
   canvas { width: 100%; height: auto; border-radius: 12px; background: #fff; border: 1px solid var(--border); display: block; }
 
-  /* destination selector */
   .dest-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
   .dest { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 10px 8px; text-align: center; cursor: pointer; font-family: var(--jp); }
   .dest .to { font-size: 11px; color: var(--muted); display: block; }
   .dest .fx { font-size: 14px; font-weight: 800; color: var(--ink); }
-  .dest[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-soft); }
-  .dest[aria-pressed="true"] .fx { color: var(--teal); }
+  .dest[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .dest[aria-pressed="true"] .fx { color: var(--accent); }
 
-  /* waveform buttons */
-  .wave-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .wave-btn { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 8px 4px 6px; cursor: pointer; text-align: center; }
-  .wave-btn svg { display: block; margin: 0 auto 4px; }
-  .wave-btn .wname { font-size: 11px; font-weight: 700; color: var(--muted); }
-  .wave-btn[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-soft); }
-  .wave-btn[aria-pressed="true"] .wname { color: var(--teal); }
-  .wave-btn[aria-pressed="true"] svg path { stroke: var(--teal); }
+  .gm-panel { display: none; margin-top: 12px; border: 2px solid var(--border); border-radius: 12px; background: #fff; padding: 6px 14px 14px; max-height: 340px; overflow: auto; }
+  .gm-panel.show { display: block; }
+  .gm-group { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: .08em; margin: 12px 0 6px; }
+  .gm-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  @media (max-width: 560px) { .gm-grid { grid-template-columns: repeat(2, 1fr); } }
+  .gm-btn { border: 1.5px solid var(--border); border-radius: 8px; background: #fff; padding: 6px 8px; text-align: left; cursor: pointer; font-family: var(--jp); font-size: 11.5px; font-weight: 400; color: var(--ink); }
+  .gm-btn .gn { font-family: var(--mono); color: var(--muted); font-size: 10px; margin-right: 4px; }
+  .gm-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); font-weight: 700; }
+  .gm-status { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .gm-status b { color: var(--accent); }
 
-  /* keyboard */
-  .kbd { display: flex; gap: 6px; margin-top: 10px; }
-  .key { flex: 1; height: 92px; border-radius: 0 0 10px 10px; border: 1px solid var(--border); background: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 8px; user-select: none; }
-  .key .kc { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--teal); }
+  .kbd { position: relative; height: 122px; margin-top: 10px; }
+  .kbd .white-row { display: flex; gap: 4px; height: 100%; }
+  .key { flex: 1; border-radius: 0 0 10px 10px; border: 1px solid var(--border); background: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 8px; user-select: none; touch-action: none; }
+  .key .kc { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--accent); }
   .key .kn { font-family: var(--mono); font-size: 10px; color: var(--muted); }
-  .key.down { background: var(--teal-soft); border-color: var(--teal); }
+  .key.down { background: var(--accent-soft); border-color: var(--accent); }
+  .key.black { position: absolute; top: 0; width: 8.5%; height: 60%; background: #232A3B; border: 1px solid #1F2430; border-radius: 0 0 7px 7px; z-index: 2; padding-bottom: 6px; }
+  .key.black .kc { color: #93C5FD; font-size: 12px; }
+  .key.black .kn { color: #9AA2B5; font-size: 9px; }
+  .key.black.down { background: var(--accent); border-color: var(--accent); }
 
-  /* CC map */
   .legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 20px; }
   .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; cursor: pointer; color: var(--ink); }
   .chip .dot { width: 12px; height: 12px; border-radius: 4px; border: 1px solid rgba(0,0,0,.12); }
@@ -100,20 +105,18 @@
   .cell .name { font-size: 10.5px; line-height: 1.35; display: block; }
   .cell.undef { color: #A6ABB8; }
 
-  /* CC popup */
-  #ccPop { position: fixed; z-index: 60; width: min(340px, calc(100vw - 24px)); background: #fff; border: 2px solid var(--teal); border-radius: 14px; padding: 16px 18px 14px; box-shadow: 0 12px 32px rgba(16,22,35,.18); display: none; }
+  #ccPop { position: fixed; z-index: 60; width: min(340px, calc(100vw - 24px)); background: #fff; border: 2px solid var(--accent); border-radius: 14px; padding: 16px 18px 14px; box-shadow: 0 12px 32px rgba(16,22,35,.18); display: none; }
   #ccPop.show { display: block; }
   #ccPop .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-right: 28px; }
-  #ccPop .cc-num { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--teal); }
+  #ccPop .cc-num { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--accent); }
   #ccPop .cc-name { font-size: 15px; font-weight: 800; }
   #ccPop .cc-cat { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; margin-top: 6px; display: inline-block; }
   #ccPop .cc-desc { margin-top: 8px; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
   #ccPop .cc-hex { margin-top: 8px; font-family: var(--mono); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
   #ccPop .close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 8px; border: none; background: var(--card); color: var(--muted); font-size: 15px; line-height: 1; }
-  #ccPop::after { content: ""; position: absolute; width: 14px; height: 14px; background: #fff; border-left: 2px solid var(--teal); border-top: 2px solid var(--teal); transform: rotate(45deg); left: var(--arrow-x, 40px); top: -9px; }
+  #ccPop::after { content: ""; position: absolute; width: 14px; height: 14px; background: #fff; border-left: 2px solid var(--accent); border-top: 2px solid var(--accent); transform: rotate(45deg); left: var(--arrow-x, 40px); top: -9px; }
   #ccPop.below::after { top: auto; bottom: -9px; transform: rotate(225deg); }
 
-  /* history */
   .timeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 8px; }
   @media (max-width: 860px) { .timeline { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 520px) { .timeline { grid-template-columns: 1fr; } }
@@ -124,37 +127,37 @@
   .takeaway { margin-top: 24px; border-radius: 12px; background: var(--card); padding: 16px 20px; font-size: 14px; }
   .takeaway strong { color: var(--orange); }
 
-  #monitor { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: #101623; color: #D7E4E2; font-family: var(--mono); font-size: 12.5px; padding: 10px 20px; border-top: 3px solid var(--teal); max-height: 104px; overflow: hidden; }
-  #monitor .mtitle { font-size: 10px; letter-spacing: .15em; color: var(--teal); text-transform: uppercase; margin-bottom: 4px; }
-  #monitor .line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #monitor .hexpart { color: #5EEAD4; font-weight: 700; }
+  #monitor { position: fixed; top: 14px; right: 14px; z-index: 40; width: 340px; max-width: calc(100vw - 28px); background: rgba(13, 19, 33, .93); color: #DAE4F2; font-family: var(--mono); font-size: 11px; padding: 8px 12px; border: 2px solid var(--accent); border-radius: 12px; box-shadow: 0 8px 24px rgba(13,19,33,.25); backdrop-filter: blur(2px); }
+  #monitor .mtitle { font-size: 9px; letter-spacing: .14em; color: #93C5FD; text-transform: uppercase; margin-bottom: 3px; }
+  #monitor .line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.6; }
+  #monitor .hexpart { color: #93C5FD; font-weight: 700; }
+  @media (max-width: 700px) { #monitor { top: 0; right: 0; left: 0; max-width: none; width: auto; border-radius: 0 0 12px 12px; border-width: 0 0 2px 0; } }
 </style>
 </head>
 <body>
 <nav style="position:sticky;top:0;z-index:70;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid #D8DCE4;padding:9px 24px;font-family:sans-serif;font-size:13.5px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
   <a href="./index.html" style="font-weight:700;color:#1F2430;text-decoration:none;margin-right:8px;">🎛 触って理解するデジタル音源</a>
-  <a href="./midi.html" style="color:#D97706;text-decoration:none;font-weight:800;border-bottom:2.5px solid #D97706;">01 MIDI</a>
+  <a href="./midi.html" style="color:#2563EB;text-decoration:none;font-weight:800;border-bottom:2.5px solid #2563EB;">01 MIDI</a>
   <a href="./synth.html" style="color:#0D9488;text-decoration:none;font-weight:400;opacity:.75;">02 シンセ</a>
   <a href="./sampler.html" style="color:#B85348;text-decoration:none;font-weight:400;opacity:.75;">03 サンプラー</a>
 </nav>
 
-
 <header class="hero">
   <h1>MIDIを<span class="accent">触って</span>理解する</h1>
-  <p class="lede">MIDIは「音」ではなく<strong>数バイトの命令</strong>を送るプロトコルです。スライダーや鍵盤を操作すると、画面下の<strong>バイトモニター</strong>に実際に送られるMIDIバイト列が表示され、同時にブラウザのシンセが鳴ります。キーボードの <b style="font-family:var(--mono); color:var(--teal);">A S D F G H J K</b> でいつでも演奏できます。</p>
+  <p class="lede">MIDIは「音」ではなく<strong>数バイトの命令</strong>を送るプロトコルです。鍵盤やスライダーを操作すると、<strong>右上のバイトモニター</strong>に実際に送られるMIDIバイト列が表示され、GM音源（サウンドフォント）が鳴ります。キーボードの <b style="font-family:var(--mono); color:var(--accent);">A S D F G H J K</b>（黒鍵は W E T Y U）でいつでも演奏できます。</p>
 </header>
 
 <main>
 
-<!-- ============ 1. message anatomy ============ -->
-<section id="anatomy">
-  <h2>メッセージの正体は数バイトの列</h2>
-  <p class="sub">例：Note On（ドを強さ100で鳴らす）はたった3バイト</p>
+<!-- ============ 1. MIDI basics ============ -->
+<section id="basics">
+  <h2>① MIDIの基本 ── Note On/Off とプログラムチェンジ</h2>
+  <p class="sub">メッセージの正体は数バイトの列。Note On（ドを強さ100で鳴らす）はたった3バイト</p>
   <div class="bytes-row">
     <div class="byte status">
       <div class="hex">0x9<span class="n">0</span></div>
       <div class="label">ステータスバイト</div>
-      <div class="desc">上位4bit＝種別（9=Note On）／下位4bit＝チャンネル（0〜15）</div>
+      <div class="desc">上位4bit＝種別（9=Note On）／下位4bit＝チャンネル（0〜15）。後続バイトの数と意味を決める「動詞＋宛名」</div>
     </div>
     <div class="byte">
       <div class="hex">0x3C</div>
@@ -167,13 +170,46 @@
       <div class="desc">打鍵の強さ。0〜127</div>
     </div>
   </div>
-  <p class="note">データバイトは必ず0〜127（最上位bit＝0）。128以上は「新しいステータス」と解釈されるため。CCが128個・値が128段階なのはこの制約そのもの。プログラムチェンジ（0xCn）はデータ1バイト、MIDIクロック（0xF8）はステータス1バイトのみと、コマンドごとに長さが違う。</p>
+  <div class="demo">
+    <h3 style="margin-top:0;">鍵盤で送ってみる（押す＝Note On、離す＝Note Off）</h3>
+    <div class="kbd" id="kbd"></div>
+    <span class="kbd-hint"><b>A S D F G H J K</b> ＝ ド レ ミ ファ ソ ラ シ ド（黒鍵は <b>W E T Y U</b>）</span>
+    <p class="note" style="margin-top:10px;">右上のモニターに注目。<b>音の「長さ」はメッセージに含まれない</b>――Note OnとNote Offの時間差として受信側が解釈する。またNote Offは「消音命令」ではなく「鍵盤を離した」という報告。</p>
+
+    <h3>音色を切り替える ── プログラムチェンジ（0xCn）</h3>
+    <button class="ghost" id="gmOpen" aria-expanded="false">🎹 GM 128音色から選ぶ</button>
+    <div class="gm-panel" id="gmPanel"></div>
+    <div class="gm-status" id="gmStatus">音色: <b>0 グランドピアノ</b>（GM標準）</div>
+    <p class="note" style="margin-top:10px;">プログラムチェンジは<b>データ1バイトだけ</b>の珍しい形式（<span style="font-family:var(--mono);">C0 28</span>＝音色40番）。GMはこの1バイトで指せる<b>0〜127の128音色</b>を共通の音色マップとして定めた規格で、どの音源でも「40番＝バイオリン」が保証される。※128色を超える音源はバンクセレクト（CC#0/#32）という拡張で「棚」を切り替えるが、GMの範囲では不要。</p>
+  </div>
 </section>
 
-<!-- ============ 2. modulation ============ -->
+<!-- ============ 2. Velocity / Volume ============ -->
+<section id="velo">
+  <h2>② ベロシティとボリューム ── 「強さ」は2種類ある</h2>
+  <p class="sub">ベロシティ＝1音ごとの打鍵の強さ（Note Onの3バイト目）／ ボリューム＝チャンネル全体の音量（CC#7）</p>
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <div class="ctl"><label>ベロシティ（次に弾く音の強さ） <span class="val" id="velVal">100</span></label><input type="range" id="velSlider" min="1" max="127" value="100"></div>
+        <div class="ctl"><label>CC#7 ボリューム（チャンネル全体） <span class="val" id="volVal">100</span></label><input type="range" id="volSlider" min="0" max="127" value="100"></div>
+        <div class="ctl"><label>CC#11 エクスプレッション（演奏中の抑揚） <span class="val" id="exprVal">127</span></label><input type="range" id="exprSlider" min="0" max="127" value="127"></div>
+      </div>
+      <div>
+        <p class="note" style="margin-top:4px;"><b>使い分けの考え方</b><br>
+        <b>ベロシティ</b>はNote Onに埋め込まれる「その1音の」値。発音後には変えられない（打鍵は打鍵し直せない）。<br>
+        <b>ボリューム（CC#7）</b>はミキサーのフェーダー。チャンネルの基準音量で、全ノートに効く。<br>
+        <b>エクスプレッション（CC#11）</b>はボリュームの中での抑揚。管楽器の息づかいのように、演奏中に動かす前提の値。<br>
+        鍵盤を弾きながら3つを動かして、モニターのバイト列と効き方の違いを確認してみよう。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. modulation ============ -->
 <section id="mod">
-  <h2>モジュレーション（CC#1）</h2>
-  <p class="sub">正体は「LFO（周期的な揺れ）をどれだけ深く掛けるか」の制御 ―― 掛け先を切り替えて聴き比べよう</p>
+  <h2>③ MIDI音源にモジュレーション（CC#1）<span style="font-size:14px; color:var(--muted); font-weight:400;">──オプション</span></h2>
+  <p class="sub">MIDIで送れるのは「揺れの深さ」だけ。掛け先と速度は音源側の設定</p>
   <div class="demo">
     <div class="demo-grid">
       <div>
@@ -189,11 +225,11 @@
         </div>
         <div class="ctl">
           <label>LFO速度（音源側の設定・MIDIでは送らない） <span class="val" id="rateVal">5.5 Hz</span></label>
-          <input type="range" id="modRate" min="1" max="12" step="0.5" value="5.5">
+          <input type="range" id="modRate" min="0" max="1" step="0.002" value="0.322">
         </div>
         <button id="modToggle" aria-pressed="false">▶ 持続音で聴く（ON/OFF）</button>
         <br><span class="kbd-hint"><b>A S D F G H J K</b> で演奏しながら効果を確認できます</span>
-        <p class="note" style="margin-top:12px;">MIDIで送れるのは深さ（CC#1）だけ。掛け先と速度は音源側の設定。GM準拠音源（例：SAM2695）はデフォルトで音程に掛かるため、実質「ビブラートの深さ」として機能する。</p>
+        <p class="note" style="margin-top:12px;">GM準拠音源（例：SAM2695）はデフォルトで音程に掛かるため、CC#1は実質「ビブラートの深さ」として機能する。※音色データによってはビブラートが効かない場合があります。</p>
       </div>
       <div>
         <canvas id="lfoCanvas" width="560" height="240"></canvas>
@@ -203,53 +239,51 @@
   </div>
 </section>
 
-<!-- ============ 3. ADSR ============ -->
+<!-- ============ 4. ADSR ============ -->
 <section id="adsr">
-  <h2>ADSR エンベロープ</h2>
-  <p class="sub">鍵盤を押してから音が消えるまでの音量変化を、4つのパラメータで表す</p>
+  <h2>④ MIDI音源にエンベロープ（CC#73/75/72）<span style="font-size:14px; color:var(--muted); font-weight:400;">──オプション</span></h2>
+  <p class="sub">MIDIではCC#73＝Attack、CC#75＝Decay、CC#72＝Releaseに割り当てられている（対応音源のみ）</p>
   <div class="demo">
     <div class="demo-grid">
       <div>
-        <div class="ctl"><label>Attack 立ち上がり <span class="val" id="aVal">50 ms</span></label><input type="range" id="aSlider" min="1" max="2000" value="50"></div>
-        <div class="ctl"><label>Decay 減衰 <span class="val" id="dVal">200 ms</span></label><input type="range" id="dSlider" min="1" max="2000" value="200"></div>
-        <div class="ctl"><label>Sustain 維持レベル（時間ではなく音量） <span class="val" id="sVal">70</span></label><input type="range" id="sSlider" min="0" max="127" value="70"></div>
-        <div class="ctl"><label>Release 余韻 <span class="val" id="rVal">400 ms</span></label><input type="range" id="rSlider" min="1" max="3000" value="400"></div>
-        <h3>音色 ＝ 波形を選ぶ（プログラムチェンジ 0xCn）</h3>
-        <div class="wave-row" id="waveRow"></div>
-        <h3>鍵盤（押している間＝Note On、離す＝Note Off）</h3>
-        <div class="kbd" id="kbd"></div>
-        <span class="kbd-hint"><b>A S D F G H J K</b> ＝ ド レ ミ ファ ソ ラ シ ド</span>
-        <p class="note" style="margin-top:10px;">ADSRのSustain（音量レベル）とサスティンペダル（CC#64、ON/OFF）は別物。MIDIではCC#73＝Attack、CC#75＝Decay、CC#72＝Releaseに割り当てられている。</p>
+        <div class="ctl"><label>Attack 立ち上がり（CC#73） <span class="val" id="aVal">50 ms</span></label><input type="range" id="aSlider" min="1" max="2000" value="50"></div>
+        <div class="ctl"><label>Decay 減衰（CC#75） <span class="val" id="dVal">200 ms</span></label><input type="range" id="dSlider" min="1" max="2000" value="200"></div>
+        <div class="ctl"><label>Sustain 維持レベル（標準CCなし） <span class="val" id="sVal">70</span></label><input type="range" id="sSlider" min="0" max="127" value="70"></div>
+        <div class="ctl"><label>Release 余韻（CC#72） <span class="val" id="rVal">400 ms</span></label><input type="range" id="rSlider" min="1" max="3000" value="400"></div>
+        <h3>鍵盤で試す</h3>
+        <div class="kbd" id="kbd2"></div>
+        <span class="kbd-hint"><b>A S D F G H J K</b>（黒鍵は <b>W E T Y U</b>）。①で選んだ音色にADSRが掛かる</span>
+        <p class="note" style="margin-top:10px;">サンプル音源へのADSRは「掛け算」――ピアノの打撃感をゆっくりAttackで消すことはできるが、減衰しきった音を伸ばすことはできない。ADSRのSustain（音量レベル）とサスティンペダル（CC#64、ON/OFF）は別物。</p>
       </div>
       <div>
         <canvas id="envCanvas" width="560" height="300"></canvas>
-        <p class="note" style="margin-top:8px;">現在のエンベロープ形状（S だけが縦軸＝レベル、他は横軸＝時間）</p>
+        <p class="note" style="margin-top:8px;">現在のエンベロープ形状と再生位置（S だけが縦軸＝レベル、他は横軸＝時間）</p>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ 4. CC map ============ -->
+<!-- ============ 5. CC map ============ -->
 <section id="ccmap">
-  <h2>コントロールチェンジ（CC）番号の全体地図</h2>
+  <h2>⑤ コントロールチェンジ（CC）番号の全体地図</h2>
   <p class="sub">「設計図」ではなく「増改築を繰り返した建物の現況図」――マスをクリックすると説明がポップアップ、凡例クリックで絞り込み</p>
   <div class="legend" id="legend"></div>
   <div class="ccgrid" id="ccgrid"></div>
   <div class="takeaway"><strong>GM音源（SAM2695など）の実務で覚えるのは9個だけ：</strong> 1 モジュレーション ／ 7 ボリューム ／ 10 パン ／ 11 エクスプレッション ／ 64 サスティン ／ 91 リバーブ ／ 93 コーラス ／ 120・123 緊急停止</div>
 </section>
 
-<!-- ============ 5. history ============ -->
+<!-- ============ 6. history ============ -->
 <section id="history">
-  <h2>なぜこうなった？ ――40年の増改築史</h2>
+  <h2>⑥ なぜこうなった？ ――40年の増改築史</h2>
   <p class="sub">一度製品が世に出ると、互換性のため番号の変更・再利用ができない。だから「地層」が積み重なる</p>
   <div class="timeline">
-    <div class="era" style="border-top-color: var(--teal);">
-      <div class="year" style="color: var(--teal);">1983</div>
+    <div class="era" style="border-top-color: var(--accent);">
+      <div class="year" style="color: var(--accent);">1983</div>
       <h3>MIDI 1.0 原設計</h3>
       <p>目的は「鍵盤演奏の物理操作の伝送」。ホイールやペダルなど実在の操作子に0〜63を割り当て。MSB/LSBペアで14bit化も構想。120〜127は命令用に予約。</p>
     </div>
-    <div class="era" style="border-top-color: #5B8A85;">
-      <div class="year" style="color: #5B8A85;">80〜90年代</div>
+    <div class="era" style="border-top-color: #5B7A8A;">
+      <div class="year" style="color: #5B7A8A;">80〜90年代</div>
       <h3>構想の死蔵と凍結</h3>
       <p>LSB（32〜63）を使う機器がほぼ現れず死に地層に。普及した番号は互換性のため変更不可能になり、欠番は欠番のまま凍結。</p>
     </div>
@@ -275,14 +309,14 @@
 </div>
 
 <div id="monitor" aria-live="polite">
-  <div class="mtitle">MIDI Byte Monitor — 操作すると実際に送られるバイト列が表示されます</div>
+  <div class="mtitle">MIDI Byte Monitor</div>
   <div id="mlines"></div>
 </div>
 
 <script>
 "use strict";
 // =====================================================================
-// Byte monitor
+// Byte monitor（新着は下、古い行ほど薄く、5行保持）
 // =====================================================================
 const mlines = document.getElementById('mlines');
 const hx = (b) => b.toString(16).toUpperCase().padStart(2, '0');
@@ -291,14 +325,16 @@ function logMidi(bytes, decode) {
   line.className = 'line';
   const hexTxt = bytes.length ? bytes.map(hx).join(' ') : '--';
   line.innerHTML = '<span class="hexpart">' + hexTxt + '</span>  →  ' + decode;
-  mlines.prepend(line);
-  while (mlines.children.length > 3) mlines.removeChild(mlines.lastChild);
+  mlines.appendChild(line);
+  while (mlines.children.length > 5) mlines.removeChild(mlines.firstChild);
+  const kids = [...mlines.children];
+  kids.forEach((el, i) => { el.style.opacity = (1 - 0.18 * (kids.length - 1 - i)).toFixed(2); });
 }
 
 // =====================================================================
-// WebAudio core + global modulation bus
+// WebAudio core + modulation bus + channel gains
 // =====================================================================
-let AC = null, master = null;
+let AC = null, master = null, chVol = null, exprG = null;
 let lfo = null, tapPitch = null, tapAmp = null, tapFilter = null;
 let destination = 'pitch';
 
@@ -306,14 +342,18 @@ function ensureAudio() {
   if (!AC) {
     AC = new (window.AudioContext || window.webkitAudioContext)();
     master = AC.createGain();
-    master.gain.value = 0.22;
+    master.gain.value = 0.25;
     master.connect(AC.destination);
-    // one global LFO with three destination taps
+    chVol = AC.createGain();
+    exprG = AC.createGain();
+    chVol.gain.value = parseInt(volSlider.value) / 127;
+    exprG.gain.value = parseInt(exprSlider.value) / 127;
+    chVol.connect(exprG).connect(master);
     lfo = AC.createOscillator();
-    lfo.frequency.value = parseFloat(modRate.value);
-    tapPitch = AC.createGain();   // → osc.detune (cents)
-    tapAmp = AC.createGain();     // → tremolo gain.gain
-    tapFilter = AC.createGain();  // → filter.frequency (Hz)
+    lfo.frequency.value = lfoRate();
+    tapPitch = AC.createGain();
+    tapAmp = AC.createGain();
+    tapFilter = AC.createGain();
     lfo.connect(tapPitch); lfo.connect(tapAmp); lfo.connect(tapFilter);
     lfo.start();
     applyDepth();
@@ -325,47 +365,210 @@ function applyDepth() {
   if (!AC) return;
   const d = parseInt(modDepth.value) / 127;
   const t = AC.currentTime;
-  tapPitch.gain.setTargetAtTime(destination === 'pitch' ? d * 80 : 0, t, 0.02);   // ±80 cents
-  tapAmp.gain.setTargetAtTime(destination === 'amp' ? d * 0.85 : 0, t, 0.02);     // ±0.85 gain
-  tapFilter.gain.setTargetAtTime(destination === 'filter' ? d * 1600 : 0, t, 0.02); // ±1600 Hz
+  tapPitch.gain.setTargetAtTime(destination === 'pitch' ? d * 80 : 0, t, 0.02);
+  tapAmp.gain.setTargetAtTime(destination === 'amp' ? d * 0.85 : 0, t, 0.02);
+  tapFilter.gain.setTargetAtTime(destination === 'filter' ? d * 1600 : 0, t, 0.02);
 }
 
-// build one voice routed through the modulation bus
-function makeVoice(freq, waveform) {
-  const osc = AC.createOscillator();
-  osc.type = waveform;
-  osc.frequency.value = freq;
-  tapPitch.connect(osc.detune);
-
+// GM音源のボイス: フィルター→トレモロ→ADSR→リリース→チャンネル音量
+function makeSampleVoice(n) {
   const filter = AC.createBiquadFilter();
   filter.type = 'lowpass';
   filter.frequency.value = 2200;
   filter.Q.value = 5;
   tapFilter.connect(filter.frequency);
 
-  const trem = AC.createGain();   // tremolo target (base 1.0)
+  const trem = AC.createGain();
   trem.gain.value = 1.0;
   tapAmp.connect(trem.gain);
 
-  const env = AC.createGain();    // ADSR envelope
+  const env = AC.createGain();
   env.gain.value = 0.0001;
+  const rel = AC.createGain();
+  rel.gain.value = 1;
 
-  osc.connect(filter).connect(trem).connect(env).connect(master);
-  osc.start();
-  return { osc, filter, trem, env };
+  filter.connect(trem).connect(env).connect(rel).connect(chVol);
+  const wf = wafPlayer.queueWaveTable(AC, filter, gmPreset, AC.currentTime, n, 999, 0.9);
+  const v = { wf, filter, trem, env, rel, pitchTaps: [] };
+  // ビブラート: サンプル再生ノードのdetuneに接続できる場合のみ
+  try {
+    const src = wf && wf.audioBufferSourceNode;
+    if (src && src.detune) { tapPitch.connect(src.detune); v.pitchTaps.push(src.detune); }
+  } catch (e) {}
+  return v;
 }
 function killVoice(v, when) {
-  v.osc.stop(when);
-  // disconnect modulation taps a bit later to free nodes
   setTimeout(() => {
-    try { tapPitch.disconnect(v.osc.detune); } catch (e) {}
+    if (v.wf) { try { v.wf.cancel(); } catch (e) {} }
+    v.pitchTaps.forEach(p => { try { tapPitch.disconnect(p); } catch (e) {} });
     try { tapFilter.disconnect(v.filter.frequency); } catch (e) {}
     try { tapAmp.disconnect(v.trem.gain); } catch (e) {}
   }, (when - AC.currentTime) * 1000 + 400);
 }
 
 // =====================================================================
-// Modulation demo controls
+// ① GM音色（プログラムチェンジのみ・バンクセレクト不使用）
+// =====================================================================
+let gmProgram = 0;
+let gmPreset = null;
+let gmLoading = false;
+const presetCache = {};
+let wafPlayer = null;
+let gmPanelBuilt = false;
+const pendingNotes = new Set();
+
+const gmOpen = document.getElementById('gmOpen');
+const gmPanel = document.getElementById('gmPanel');
+const gmStatus = document.getElementById('gmStatus');
+
+const GM_GROUPS = ['ピアノ', 'クロマチック打楽器', 'オルガン', 'ギター', 'ベース', 'ストリングス', 'アンサンブル', 'ブラス', 'リード', 'パイプ', 'シンセリード', 'シンセパッド', 'シンセ効果', 'エスニック', 'パーカッシブ', '効果音'];
+const GM_NAMES = [
+  'グランドピアノ', 'ブライトピアノ', 'エレクトリックグランド', 'ホンキートンク', 'エレピ1', 'エレピ2', 'ハープシコード', 'クラビネット',
+  'チェレスタ', 'グロッケン', 'オルゴール', 'ビブラフォン', 'マリンバ', 'シロフォン', 'チューブラーベル', 'ダルシマー',
+  'ドローバーオルガン', 'パーカッシブオルガン', 'ロックオルガン', 'チャーチオルガン', 'リードオルガン', 'アコーディオン', 'ハーモニカ', 'バンドネオン',
+  'ナイロンギター', 'スチールギター', 'ジャズギター', 'クリーンギター', 'ミュートギター', 'オーバードライブ', 'ディストーション', 'ハーモニクス',
+  'アコースティックベース', 'フィンガーベース', 'ピックベース', 'フレットレスベース', 'スラップベース1', 'スラップベース2', 'シンセベース1', 'シンセベース2',
+  'バイオリン', 'ビオラ', 'チェロ', 'コントラバス', 'トレモロ弦', 'ピチカート弦', 'ハープ', 'ティンパニ',
+  '弦アンサンブル1', '弦アンサンブル2', 'シンセ弦1', 'シンセ弦2', '合唱「アー」', 'ボイス「ウー」', 'シンセボイス', 'オーケストラヒット',
+  'トランペット', 'トロンボーン', 'チューバ', 'ミュートトランペット', 'ホルン', 'ブラスセクション', 'シンセブラス1', 'シンセブラス2',
+  'ソプラノサックス', 'アルトサックス', 'テナーサックス', 'バリトンサックス', 'オーボエ', 'イングリッシュホルン', 'ファゴット', 'クラリネット',
+  'ピッコロ', 'フルート', 'リコーダー', 'パンフルート', 'ボトルブロー', '尺八', '口笛', 'オカリナ',
+  '矩形波リード', 'ノコギリ波リード', 'カリオペ', 'チフ', 'チャラン', 'ボイスリード', 'フィフスリード', 'ベース＋リード',
+  'ニューエイジパッド', 'ウォームパッド', 'ポリシンセパッド', 'クワイアパッド', 'ボウドパッド', 'メタリックパッド', 'ハローパッド', 'スイープパッド',
+  '雨', 'サウンドトラック', 'クリスタル', 'アトモスフィア', 'ブライトネス', 'ゴブリン', 'エコードロップ', 'サイファイ',
+  'シタール', 'バンジョー', '三味線', '琴', 'カリンバ', 'バグパイプ', 'フィドル', 'シャナイ',
+  'ティンクルベル', 'アゴゴ', 'スチールドラム', 'ウッドブロック', '和太鼓', 'メロディックタム', 'シンセドラム', 'リバースシンバル',
+  'ギターフレットノイズ', 'ブレスノイズ', '波の音', '鳥のさえずり', '電話のベル', 'ヘリコプター', '拍手', '銃声',
+];
+
+gmOpen.addEventListener('click', () => {
+  const show = !gmPanel.classList.contains('show');
+  gmPanel.classList.toggle('show', show);
+  gmOpen.setAttribute('aria-expanded', String(show));
+  if (show && !gmPanelBuilt) buildGmPanel();
+});
+
+function buildGmPanel() {
+  gmPanelBuilt = true;
+  for (let g = 0; g < 16; g++) {
+    const head = document.createElement('div');
+    head.className = 'gm-group';
+    head.textContent = GM_GROUPS[g] + '（' + (g * 8) + '〜' + (g * 8 + 7) + '）';
+    gmPanel.appendChild(head);
+    const gridEl = document.createElement('div');
+    gridEl.className = 'gm-grid';
+    for (let i = 0; i < 8; i++) {
+      const p = g * 8 + i;
+      const btn = document.createElement('button');
+      btn.className = 'gm-btn';
+      btn.setAttribute('aria-pressed', p === 0 ? 'true' : 'false');
+      btn.dataset.p = p;
+      btn.innerHTML = '<span class="gn">' + p + '</span>' + GM_NAMES[p];
+      btn.addEventListener('click', () => selectGmProgram(p, true));
+      gridEl.appendChild(btn);
+    }
+    gmPanel.appendChild(gridEl);
+  }
+}
+
+function loadWafScript() {
+  return new Promise((resolve, reject) => {
+    if (window.WebAudioFontPlayer) { resolve(); return; }
+    const urls = [
+      'https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js',
+      'https://cdn.jsdelivr.net/npm/webaudiofont/npm/dist/WebAudioFontPlayer.js',
+    ];
+    const tryLoad = (i) => {
+      if (i >= urls.length) { reject(new Error('load failed')); return; }
+      const s = document.createElement('script');
+      s.src = urls[i];
+      s.onload = () => window.WebAudioFontPlayer ? resolve() : tryLoad(i + 1);
+      s.onerror = () => tryLoad(i + 1);
+      document.head.appendChild(s);
+    };
+    tryLoad(0);
+  });
+}
+
+function waitDecoded(preset) {
+  return new Promise((res) => {
+    const chk = () => {
+      if (preset && preset.zones && preset.zones.length && preset.zones.every(z => z.buffer)) res();
+      else setTimeout(chk, 40);
+    };
+    chk();
+  });
+}
+
+async function selectGmProgram(p, fromUser) {
+  gmProgram = p;
+  if (gmPanelBuilt) gmPanel.querySelectorAll('.gm-btn').forEach(x => x.setAttribute('aria-pressed', x.dataset.p == p ? 'true' : 'false'));
+  if (fromUser) logMidi([0xC0, p], 'Program Change ch1 → 音色 ' + p + '（' + GM_NAMES[p] + '）データ1バイトの珍しい形式');
+  ensureAudio();
+
+  if (presetCache[p]) {
+    gmPreset = presetCache[p];
+    gmStatus.innerHTML = '音色: <b>' + p + ' ' + GM_NAMES[p] + '</b>';
+    return;
+  }
+  gmPreset = null;   // 新音色の準備完了までは発音を保留（旧音色で鳴らさない）
+  gmLoading = true;
+  gmStatus.innerHTML = '音色データを読み込み中… <b>' + p + ' ' + GM_NAMES[p] + '</b>';
+  try {
+    await loadWafScript();
+    if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
+    const idx = wafPlayer.loader.findInstrument(p);
+    const info = wafPlayer.loader.instrumentInfo(idx);
+    wafPlayer.loader.startLoad(AC, info.url, info.variable);
+    wafPlayer.loader.waitLoad(async () => {
+      wafPlayer.loader.decodeAfterLoading(AC, info.variable);
+      await waitDecoded(window[info.variable]);
+      presetCache[p] = window[info.variable];
+      gmLoading = false;
+      if (gmProgram === p) {
+        gmPreset = presetCache[p];
+        gmStatus.innerHTML = '音色: <b>' + p + ' ' + GM_NAMES[p] + '</b>';
+        const held = [...pendingNotes];
+        pendingNotes.clear();
+        held.forEach(n => { keyMark(n, false); noteOn(n); });
+      }
+    });
+  } catch (e) {
+    gmLoading = false;
+    gmStatus.innerHTML = '音色データを読み込めませんでした。ネット接続のある環境でファイルを開いてください。';
+    pendingNotes.forEach(n => keyMark(n, false));
+    pendingNotes.clear();
+  }
+}
+
+// =====================================================================
+// ② ベロシティ / ボリューム / エクスプレッション
+// =====================================================================
+const velSlider = document.getElementById('velSlider');
+const volSlider = document.getElementById('volSlider');
+const exprSlider = document.getElementById('exprSlider');
+const velVal = document.getElementById('velVal');
+const volVal = document.getElementById('volVal');
+const exprVal = document.getElementById('exprVal');
+velSlider.addEventListener('input', () => {
+  velVal.textContent = velSlider.value;
+  logMidi([], '（ベロシティは単独では送られない：次のNote Onの3バイト目に載る）');
+});
+volSlider.addEventListener('input', () => {
+  const v = parseInt(volSlider.value);
+  volVal.textContent = v;
+  if (chVol) chVol.gain.setTargetAtTime(v / 127, AC.currentTime, 0.02);
+  logMidi([0xB0, 7, v], 'CC ch1 #7 ボリューム = ' + v);
+});
+exprSlider.addEventListener('input', () => {
+  const v = parseInt(exprSlider.value);
+  exprVal.textContent = v;
+  if (exprG) exprG.gain.setTargetAtTime(v / 127, AC.currentTime, 0.02);
+  logMidi([0xB0, 11, v], 'CC ch1 #11 エクスプレッション = ' + v);
+});
+
+// =====================================================================
+// ③ モジュレーション
 // =====================================================================
 const modDepth = document.getElementById('modDepth');
 const modRate = document.getElementById('modRate');
@@ -373,7 +576,6 @@ const modVal = document.getElementById('modVal');
 const rateVal = document.getElementById('rateVal');
 const modToggle = document.getElementById('modToggle');
 const lfoCaption = document.getElementById('lfoCaption');
-let drone = null;
 
 const destRow = document.getElementById('destRow');
 const destInfo = {
@@ -392,51 +594,45 @@ destRow.querySelectorAll('.dest').forEach(btn => {
   });
 });
 
-modToggle.addEventListener('click', () => {
-  ensureAudio();
-  if (!drone) {
-    drone = makeVoice(440, 'triangle');
-    drone.env.gain.setTargetAtTime(0.9, AC.currentTime, 0.02);
-    modToggle.setAttribute('aria-pressed', 'true');
-    logMidi([0x90, 69, 100], 'Note On ch1 ノート69(A4) vel100');
-  } else {
-    const t = AC.currentTime;
-    const g = drone.env.gain;
-    if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t);
-    else { const cur = Math.max(g.value, 0.0001); g.cancelScheduledValues(t); g.setValueAtTime(cur, t); }
-    g.exponentialRampToValueAtTime(0.0001, t + 0.12);
-    g.setValueAtTime(0, t + 0.13);
-    killVoice(drone, t + 0.2);
-    drone = null;
-    modToggle.setAttribute('aria-pressed', 'false');
-    logMidi([0x80, 69, 0], 'Note Off ch1 ノート69');
-  }
+function lfoRate() { return Math.pow(200, parseFloat(modRate.value)); }
+function fmtRate(r) { return (r < 20 ? r.toFixed(1) : Math.round(r)) + ' Hz'; }
+modRate.addEventListener('input', () => {
+  const r = lfoRate();
+  rateVal.textContent = fmtRate(r);
+  if (lfo) lfo.frequency.setTargetAtTime(r, AC.currentTime, 0.02);
 });
 modDepth.addEventListener('input', () => {
   modVal.textContent = modDepth.value;
   if (AC) applyDepth();
   logMidi([0xB0, 1, parseInt(modDepth.value)], 'CC ch1 #1 モジュレーション = ' + modDepth.value);
 });
-modRate.addEventListener('input', () => {
-  rateVal.textContent = modRate.value + ' Hz';
-  if (lfo) lfo.frequency.setTargetAtTime(parseFloat(modRate.value), AC.currentTime, 0.02);
+
+// 持続音: ノート69(A4)をNote On/Offで保持
+modToggle.addEventListener('click', () => {
+  if (!active[69] && !pendingNotes.has(69)) {
+    noteOn(69);
+    modToggle.setAttribute('aria-pressed', 'true');
+  } else {
+    noteOff(69);
+    if (pendingNotes.has(69)) { pendingNotes.delete(69); keyMark(69, false); }
+    modToggle.setAttribute('aria-pressed', 'false');
+  }
 });
 
-// LFO canvas
 const lfoCv = document.getElementById('lfoCanvas');
 const lfoCtx = lfoCv.getContext('2d');
 let lfoPhase = 0, lastT = performance.now();
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-function anySoundOn() { return drone !== null || Object.keys(active).length > 0; }
+function anySoundOn() { return Object.keys(active).length > 0; }
 function drawLFO() {
   const w = lfoCv.width, h = lfoCv.height;
   lfoCtx.clearRect(0, 0, w, h);
-  lfoCtx.strokeStyle = '#D8DCE4';
+  lfoCtx.strokeStyle = '#D6DEEA';
   lfoCtx.beginPath(); lfoCtx.moveTo(0, h / 2); lfoCtx.lineTo(w, h / 2); lfoCtx.stroke();
   const depth = parseInt(modDepth.value) / 127;
   const amp = depth * (h / 2 - 14);
-  const cyc = parseFloat(modRate.value) / 2.2;
-  lfoCtx.strokeStyle = '#0D9488';
+  const cyc = Math.min(lfoRate() / 2.2, 48);
+  lfoCtx.strokeStyle = '#2563EB';
   lfoCtx.lineWidth = 4; lfoCtx.lineCap = 'round';
   lfoCtx.beginPath();
   for (let x = 0; x <= w; x += 2) {
@@ -446,15 +642,16 @@ function drawLFO() {
   lfoCtx.stroke();
 }
 function tick(t) {
-  if (anySoundOn() && !reduceMotion) lfoPhase += (t - lastT) / 1000 * parseFloat(modRate.value) * 2 * Math.PI * 0.4;
+  if (anySoundOn() && !reduceMotion) lfoPhase += (t - lastT) / 1000 * Math.min(lfoRate(), 15) * 2 * Math.PI * 0.4;
   lastT = t;
   drawLFO();
+  drawEnv();
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
 
 // =====================================================================
-// ADSR demo
+// ④ ADSR
 // =====================================================================
 const sliders = {
   a: document.getElementById('aSlider'), d: document.getElementById('dSlider'),
@@ -489,128 +686,136 @@ Object.keys(sliders).forEach(k => {
 
 const envCv = document.getElementById('envCanvas');
 const envCtx = envCv.getContext('2d');
-function drawEnv() {
+let disp = null;
+
+function envGeom() {
   const { a, d, s, r } = adsr();
   const w = envCv.width, h = envCv.height, pad = 34;
-  envCtx.clearRect(0, 0, w, h);
-  envCtx.strokeStyle = '#6B7280'; envCtx.lineWidth = 2;
-  envCtx.beginPath(); envCtx.moveTo(pad, 10); envCtx.lineTo(pad, h - pad); envCtx.lineTo(w - 8, h - pad); envCtx.stroke();
   const hold = 0.8;
   const total = a + d + hold + r;
   const X = (t) => pad + (t / total) * (w - pad - 16);
   const Y = (lv) => (h - pad) - lv * (h - pad - 20);
-  const susY = Y(s);
+  return { a, d, s, r, w, h, pad, hold, total, X, Y };
+}
+function markerState(now) {
+  if (!disp) return null;
+  const g = envGeom();
+  if (!disp.released) {
+    const e = now - disp.tOn;
+    if (e < g.a) return { x: g.X(e), y: g.Y(e / g.a), phase: 'Attack' };
+    if (e < g.a + g.d) {
+      const p = (e - g.a) / g.d;
+      return { x: g.X(e), y: g.Y(1 - (1 - g.s) * p), phase: 'Decay' };
+    }
+    const es = e - g.a - g.d;
+    const frac = Math.min(es / (es + 1.2), 0.95);
+    return { x: g.X(g.a + g.d + frac * g.hold), y: g.Y(g.s), phase: 'Sustain' };
+  }
+  const rr = Math.max(disp.rRel, 0.03);
+  const p = Math.min((now - disp.tRel) / rr, 1);
+  if (p >= 1) { disp = null; return null; }
+  const g2 = envGeom();
+  return {
+    x: disp.xRel + (g2.X(g2.total) - disp.xRel) * p,
+    y: disp.yRel + (g2.Y(0) - disp.yRel) * p,
+    phase: 'Release',
+  };
+}
+function drawEnv() {
+  const g = envGeom();
+  const { w, h, pad } = g;
+  envCtx.clearRect(0, 0, w, h);
+  envCtx.strokeStyle = '#6B7280'; envCtx.lineWidth = 2;
+  envCtx.beginPath(); envCtx.moveTo(pad, 10); envCtx.lineTo(pad, h - pad); envCtx.lineTo(w - 8, h - pad); envCtx.stroke();
+  const susY = g.Y(g.s);
   envCtx.strokeStyle = '#D97706'; envCtx.setLineDash([6, 6]); envCtx.lineWidth = 1.5;
-  envCtx.beginPath(); envCtx.moveTo(pad, susY); envCtx.lineTo(X(a + d + hold), susY); envCtx.stroke();
+  envCtx.beginPath(); envCtx.moveTo(pad, susY); envCtx.lineTo(g.X(g.a + g.d + g.hold), susY); envCtx.stroke();
   envCtx.setLineDash([]);
-  envCtx.strokeStyle = '#0D9488'; envCtx.lineWidth = 5; envCtx.lineJoin = 'round'; envCtx.lineCap = 'round';
+  envCtx.strokeStyle = '#2563EB'; envCtx.lineWidth = 5; envCtx.lineJoin = 'round'; envCtx.lineCap = 'round';
   envCtx.beginPath();
-  envCtx.moveTo(X(0), Y(0));
-  envCtx.lineTo(X(a), Y(1));
-  envCtx.lineTo(X(a + d), susY);
-  envCtx.lineTo(X(a + d + hold), susY);
-  envCtx.lineTo(X(total), Y(0));
+  envCtx.moveTo(g.X(0), g.Y(0));
+  envCtx.lineTo(g.X(g.a), g.Y(1));
+  envCtx.lineTo(g.X(g.a + g.d), susY);
+  envCtx.lineTo(g.X(g.a + g.d + g.hold), susY);
+  envCtx.lineTo(g.X(g.total), g.Y(0));
   envCtx.stroke();
   envCtx.fillStyle = '#1F2430'; envCtx.font = 'bold 20px Arial'; envCtx.textAlign = 'center';
-  envCtx.fillText('A', X(a / 2), h - pad - 8);
-  envCtx.fillText('D', X(a + d / 2), h - pad - 8);
-  envCtx.fillText('S', X(a + d + hold / 2), h - pad - 8);
-  envCtx.fillText('R', X(a + d + hold + r / 2), h - pad - 8);
+  envCtx.fillText('A', g.X(g.a / 2), h - pad - 8);
+  envCtx.fillText('D', g.X(g.a + g.d / 2), h - pad - 8);
+  envCtx.fillText('S', g.X(g.a + g.d + g.hold / 2), h - pad - 8);
+  envCtx.fillText('R', g.X(g.a + g.d + g.hold + g.r / 2), h - pad - 8);
   envCtx.fillStyle = '#D97706';
-  envCtx.beginPath(); envCtx.arc(X(0), Y(0), 6, 0, 7); envCtx.fill();
-  envCtx.beginPath(); envCtx.arc(X(a + d + hold), susY, 6, 0, 7); envCtx.fill();
+  envCtx.beginPath(); envCtx.arc(g.X(0), g.Y(0), 6, 0, 7); envCtx.fill();
+  envCtx.beginPath(); envCtx.arc(g.X(g.a + g.d + g.hold), susY, 6, 0, 7); envCtx.fill();
+
+  const m = (AC && disp) ? markerState(AC.currentTime) : null;
+  if (m) {
+    envCtx.strokeStyle = 'rgba(217, 119, 6, .35)'; envCtx.lineWidth = 2;
+    envCtx.beginPath(); envCtx.moveTo(m.x, h - pad); envCtx.lineTo(m.x, m.y); envCtx.stroke();
+    envCtx.beginPath(); envCtx.arc(m.x, m.y, 9, 0, 7);
+    envCtx.fillStyle = '#D97706'; envCtx.fill();
+    envCtx.lineWidth = 3; envCtx.strokeStyle = '#fff'; envCtx.stroke();
+    envCtx.fillStyle = '#2563EB'; envCtx.font = 'bold 18px Arial'; envCtx.textAlign = 'right';
+    envCtx.fillText('▶ ' + m.phase, w - 14, 26);
+  }
 }
 drawEnv();
 
-// --- waveform selector with visual icons (Program Change) ---
-const waves = [
-  { type: 'sine',     jp: 'サイン波',   path: wavePath('sine') },
-  { type: 'triangle', jp: '三角波',     path: wavePath('triangle') },
-  { type: 'sawtooth', jp: 'ノコギリ波', path: wavePath('sawtooth') },
-  { type: 'square',   jp: '矩形波',     path: wavePath('square') },
+// =====================================================================
+// 鍵盤（①と④で共有）
+// =====================================================================
+const whiteKeys = [
+  { note: 60, ch: 'A' }, { note: 62, ch: 'S' }, { note: 64, ch: 'D' }, { note: 65, ch: 'F' },
+  { note: 67, ch: 'G' }, { note: 69, ch: 'H' }, { note: 71, ch: 'J' }, { note: 72, ch: 'K' },
 ];
-function wavePath(type) {
-  // 88x32 viewBox, 2 cycles
-  const w = 88, h = 32, mid = h / 2, amp = 12, cyc = 2;
-  if (type === 'sine') {
-    let d = '';
-    for (let x = 0; x <= w; x += 2) {
-      const y = mid - amp * Math.sin((x / w) * cyc * 2 * Math.PI);
-      d += (x === 0 ? 'M' : 'L') + x + ',' + y.toFixed(1);
-    }
-    return d;
-  }
-  const seg = w / cyc;
-  if (type === 'triangle') {
-    let d = 'M0,' + mid;
-    for (let i = 0; i < cyc; i++) {
-      const o = i * seg;
-      d += ' L' + (o + seg * 0.25) + ',' + (mid - amp) + ' L' + (o + seg * 0.75) + ',' + (mid + amp) + ' L' + (o + seg) + ',' + mid;
-    }
-    return d;
-  }
-  if (type === 'sawtooth') {
-    let d = 'M0,' + (mid + amp);
-    for (let i = 0; i < cyc; i++) {
-      const o = i * seg;
-      d += ' L' + (o + seg) + ',' + (mid - amp) + ' L' + (o + seg) + ',' + (mid + amp);
-    }
-    return d;
-  }
-  // square
-  let d = 'M0,' + (mid - amp);
-  for (let i = 0; i < cyc; i++) {
-    const o = i * seg;
-    d += ' L' + (o + seg / 2) + ',' + (mid - amp) + ' L' + (o + seg / 2) + ',' + (mid + amp) + ' L' + (o + seg) + ',' + (mid + amp);
-    d += ' L' + (o + seg) + ',' + (mid - amp);
-  }
-  return d;
-}
-let waveIndex = 0;
-const waveRow = document.getElementById('waveRow');
-waves.forEach((wv, i) => {
-  const b = document.createElement('button');
-  b.className = 'wave-btn';
-  b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
-  b.setAttribute('aria-label', wv.jp);
-  b.innerHTML =
-    '<svg width="88" height="32" viewBox="0 0 88 32" aria-hidden="true">' +
-    '<path d="' + wv.path + '" fill="none" stroke="#5C6270" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>' +
-    '<span class="wname">' + i + '：' + wv.jp + '</span>';
-  b.addEventListener('click', () => {
-    waveIndex = i;
-    waveRow.querySelectorAll('.wave-btn').forEach(x => x.setAttribute('aria-pressed', 'false'));
-    b.setAttribute('aria-pressed', 'true');
-    logMidi([0xC0, i], 'Program Change ch1 → 音色 ' + i + '（' + wv.jp + '）データ1バイトの珍しい形式');
-  });
-  waveRow.appendChild(b);
-});
-
-// --- keyboard: on-screen + ASDFGHJK ---
-const kbd = document.getElementById('kbd');
-const notes = [60, 62, 64, 65, 67, 69, 71, 72];
-const keyChars = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K'];
+const blackKeys = [
+  { note: 61, ch: 'W', pos: 1 }, { note: 63, ch: 'E', pos: 2 },
+  { note: 66, ch: 'T', pos: 4 }, { note: 68, ch: 'Y', pos: 5 }, { note: 70, ch: 'U', pos: 6 },
+];
 const keyToNote = {};
-keyChars.forEach((c, i) => keyToNote[c.toLowerCase()] = notes[i]);
 const keyEls = {};
 const active = {};
 
-notes.forEach((n, i) => {
-  const k = document.createElement('div');
-  k.className = 'key'; k.tabIndex = 0;
-  k.setAttribute('role', 'button');
-  k.setAttribute('aria-label', 'ノート' + n + '（キー ' + keyChars[i] + '）');
-  k.innerHTML = '<span class="kc">' + keyChars[i] + '</span><span class="kn">' + n + '</span>';
-  keyEls[n] = k;
+function keyMark(n, on) { (keyEls[n] || []).forEach(el => el.classList.toggle('down', on)); }
+function wireKey(el, n) {
   const down = () => noteOn(n);
   const up = () => noteOff(n);
-  k.addEventListener('pointerdown', (e) => { e.preventDefault(); down(); });
-  k.addEventListener('pointerup', up);
-  k.addEventListener('pointerleave', up);
-  k.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); down(); } });
-  k.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') up(); });
-  kbd.appendChild(k);
-});
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); down(); });
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointerleave', up);
+  el.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); down(); } });
+  el.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') up(); });
+}
+function buildKeyboard(container) {
+  const whiteRow = document.createElement('div');
+  whiteRow.className = 'white-row';
+  container.appendChild(whiteRow);
+  whiteKeys.forEach(({ note, ch }) => {
+    keyToNote[ch.toLowerCase()] = note;
+    const k = document.createElement('div');
+    k.className = 'key'; k.tabIndex = 0;
+    k.setAttribute('role', 'button');
+    k.setAttribute('aria-label', 'ノート' + note + '（キー ' + ch + '）');
+    k.innerHTML = '<span class="kc">' + ch + '</span><span class="kn">' + note + '</span>';
+    (keyEls[note] = keyEls[note] || []).push(k);
+    wireKey(k, note);
+    whiteRow.appendChild(k);
+  });
+  blackKeys.forEach(({ note, ch, pos }) => {
+    keyToNote[ch.toLowerCase()] = note;
+    const k = document.createElement('div');
+    k.className = 'key black'; k.tabIndex = 0;
+    k.setAttribute('role', 'button');
+    k.setAttribute('aria-label', 'ノート' + note + '（キー ' + ch + '）');
+    k.style.left = 'calc(' + (pos * 12.5) + '% - 4.25%)';
+    k.innerHTML = '<span class="kc">' + ch + '</span><span class="kn">' + note + '</span>';
+    (keyEls[note] = keyEls[note] || []).push(k);
+    wireKey(k, note);
+    container.appendChild(k);
+  });
+}
+buildKeyboard(document.getElementById('kbd'));
+buildKeyboard(document.getElementById('kbd2'));
 
 document.addEventListener('keydown', (e) => {
   if (e.repeat) return;
@@ -625,45 +830,60 @@ document.addEventListener('keyup', (e) => {
 });
 window.addEventListener('blur', () => { Object.keys(active).forEach(n => noteOff(parseInt(n))); });
 
-function midiToFreq(n) { return 440 * Math.pow(2, (n - 69) / 12); }
 function noteOn(n) {
-  if (active[n]) return;
+  if (active[n] || pendingNotes.has(n)) return;
   ensureAudio();
+  if (!gmPreset) {
+    pendingNotes.add(n);
+    keyMark(n, true);
+    if (!gmLoading) selectGmProgram(gmProgram, false);   // 初回はピアノを自動ロード
+    return;
+  }
   const { a, d, s } = adsr();
-  const v = makeVoice(midiToFreq(n), waves[waveIndex].type);
+  const vel = parseInt(velSlider.value);
+  const velScale = Math.pow(vel / 127, 1.5);
+  const v = makeSampleVoice(n);
   const t = AC.currentTime;
   v.env.gain.setValueAtTime(0.0001, t);
-  v.env.gain.linearRampToValueAtTime(1, t + a);
-  v.env.gain.setTargetAtTime(Math.max(s, 0.0001), t + a, Math.max(d / 3, 0.005));
+  v.env.gain.linearRampToValueAtTime(Math.max(velScale, 0.0001), t + a);
+  v.env.gain.setTargetAtTime(Math.max(s * velScale, 0.0001), t + a, Math.max(d / 3, 0.005));
   active[n] = v;
-  keyEls[n].classList.add('down');
-  logMidi([0x90, n, 100], 'Note On ch1 ノート' + n + ' vel100');
+  disp = { note: n, tOn: t, released: false };
+  keyMark(n, true);
+  logMidi([0x90, n, vel], 'Note On ch1 ノート' + n + ' vel' + vel);
 }
 function noteOff(n) {
+  if (pendingNotes.has(n)) {
+    pendingNotes.delete(n);
+    keyMark(n, false);
+    return;
+  }
   const v = active[n];
   if (!v) return;
   const { r } = adsr();
   const t = AC.currentTime;
-  const g = v.env.gain;
-  // ランプ途中で離してもゲインが飛ばないよう、現在値を保持してからリリース
-  if (g.cancelAndHoldAtTime) {
-    g.cancelAndHoldAtTime(t);
-  } else {
-    const cur = Math.max(g.value, 0.0001);
-    g.cancelScheduledValues(t);
-    g.setValueAtTime(cur, t);
+  const tau = Math.max(r / 4, 0.015);
+  v.rel.gain.setTargetAtTime(0, t, tau);
+  killVoice(v, t + tau * 8 + 0.1);
+  if (disp && disp.note === n && !disp.released) {
+    const m = markerState(t);
+    if (m) {
+      disp.released = true;
+      disp.tRel = t;
+      disp.xRel = m.x;
+      disp.yRel = m.y;
+      disp.rRel = r;
+    } else {
+      disp = null;
+    }
   }
-  const rel = Math.max(r, 0.03);
-  g.exponentialRampToValueAtTime(0.0001, t + rel);
-  g.setValueAtTime(0, t + rel + 0.01);
-  killVoice(v, t + rel + 0.08);
   delete active[n];
-  keyEls[n].classList.remove('down');
+  keyMark(n, false);
   logMidi([0x80, n, 0], 'Note Off ch1 ノート' + n + '（消音命令ではなく"離した"報告）');
 }
 
 // =====================================================================
-// CC map with names + popup
+// ⑤ CC map + popup
 // =====================================================================
 const CAT = {
   msb:   { hex: '#2DD4BF', label: '連続コントロール（MSB）', note: '1983年の原設計。実在の操作子に割り当てられた区画' },
@@ -697,8 +917,8 @@ const HI_NAMES = {
   124: 'オムニOFF', 125: 'オムニON', 126: 'モノモード', 127: 'ポリモード',
 };
 const DESC = {
-  0: 'プログラムチェンジと組み合わせて128種類を超える音色バンクを切り替える。',
-  1: 'LFOの掛かり具合を制御。GM音源では実質ビブラートの深さ。上のデモで体験した通り、掛け先しだいでトレモロやワウにもなる。',
+  0: '128音色を超える音源のための拡張。CC#32（LSB）とペアで「棚」を選んでからプログラムチェンジで棚の中の番号を選ぶ。GMの範囲（バンク0）では不要。',
+  1: 'LFOの掛かり具合を制御。GM音源では実質ビブラートの深さ。③のデモで体験した通り、掛け先しだいでトレモロやワウにもなる。',
   2: '管楽器型コントローラーの息の強さを伝える。',
   4: '足元のペダル（連続値）に対応。',
   5: '音から音へ滑らかにつながる速さ（ポルタメント）の時間。',
@@ -709,6 +929,7 @@ const DESC = {
   11: 'ボリューム内でのさらなる抑揚付け。息の強弱のような表現に使う。',
   16: 'メーカーや機器が自由に使える汎用スロット。', 17: 'メーカーや機器が自由に使える汎用スロット。',
   18: 'メーカーや機器が自由に使える汎用スロット。', 19: 'メーカーや機器が自由に使える汎用スロット。',
+  32: 'バンクセレクトの下位バイト。CC#0とペアで最大16,384バンク。',
   64: 'ダンパーペダル。ONの間はNote Offが来ても鳴り続ける。ADSRのSustain（音量レベル）とは別物。',
   65: 'ポルタメントのON/OFF。', 66: '押鍵中の音だけ保持するペダル。', 67: '音を柔らかくするペダル。',
   70: '音色のバリエーション切り替え（推奨割り当て）。',
@@ -747,11 +968,13 @@ function catOf(n) {
   if (n >= 32) {
     const m = n - 32;
     if (m === 6) return 'rpn';
-    return (m in MSB_NAMES) ? 'lsb' : 'undef';
+    const definedMsb = [0,1,2,4,5,7,8,10,11,12,13,16,17,18,19];
+    return definedMsb.includes(m) ? 'lsb' : 'undef';
   }
   if (n === 6) return 'rpn';
   if (n >= 16 && n <= 19) return 'gp';
-  return (n in MSB_NAMES) ? 'msb' : 'undef';
+  const defined = [0,1,2,4,5,7,8,10,11,12,13];
+  return defined.includes(n) ? 'msb' : 'undef';
 }
 function nameOf(n) {
   if (n in HI_NAMES) return HI_NAMES[n];
@@ -806,31 +1029,25 @@ function showPopup(cell, n, cat) {
   positionPopup(cell);
   if (cat !== 'undef') logMidi([0xB0, n, 64], 'CC ch1 #' + n + ' ' + nameOf(n) + ' = 64');
 }
-
 function positionPopup(cell) {
   const r = cell.getBoundingClientRect();
   const pw = pop.offsetWidth, ph = pop.offsetHeight;
   const margin = 12, gap = 14;
-  const monitorH = document.getElementById('monitor').offsetHeight;
-  // horizontal: center on cell, clamp to viewport
   let left = r.left + r.width / 2 - pw / 2;
   left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
-  // vertical: prefer below; flip above if it would hit the monitor
   let top = r.bottom + gap;
   let below = false;
-  if (top + ph > window.innerHeight - monitorH - margin) {
+  if (top + ph > window.innerHeight - margin) {
     top = r.top - ph - gap;
-    below = true; // arrow at bottom
+    below = true;
     if (top < margin) top = margin;
   }
   pop.style.left = left + 'px';
   pop.style.top = top + 'px';
   pop.classList.toggle('below', below);
-  // arrow x aligned to cell center, clamped inside popup
   const ax = Math.max(18, Math.min(r.left + r.width / 2 - left - 7, pw - 32));
   pop.style.setProperty('--arrow-x', ax + 'px');
 }
-
 function closePopup() { pop.classList.remove('show'); }
 document.getElementById('ccPopClose').addEventListener('click', closePopup);
 document.addEventListener('click', (e) => { if (pop.classList.contains('show') && !pop.contains(e.target)) closePopup(); });
@@ -838,7 +1055,6 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopup
 window.addEventListener('scroll', closePopup, { passive: true });
 window.addEventListener('resize', closePopup);
 
-// legend as filters
 const legend = document.getElementById('legend');
 Object.keys(CAT).forEach(key => {
   const chip = document.createElement('button');
