@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>サンプラーを触って理解する — 録音・スライス・エフェクト</title>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --ink: #1F2430;
+    --muted: #5C6270;
+    --card: #F2F4F8;
+    --border: #D8DCE4;
+    --main: #B85348;
+    --main-soft: #F6E4E0;
+    --accent: #0D9488;
+    --pink: #F472B6;
+    --violet: #A78BFA;
+    --blue: #60A5FA;
+    --mono: "SFMono-Regular", "Consolas", "Menlo", monospace;
+    --jp: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+  body { font-family: var(--jp); color: var(--ink); background: var(--bg); line-height: 1.7; padding-bottom: 130px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero { padding: 72px 24px 48px; max-width: 1080px; margin: 0 auto; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--main); text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: 0.01em; line-height: 1.3; }
+  h1 .accent { color: var(--main); }
+  .lede { margin-top: 16px; font-size: 16px; color: var(--muted); max-width: 46em; }
+  .lede strong { color: var(--ink); }
+  .lede b.k { font-family: var(--mono); color: var(--main); }
+
+  section { padding: 48px 0; border-top: 1px solid var(--border); }
+  /* section colors match the chain map (⑥): modifier = teal, effects = blue */
+  #modifier { --main: #0D9488; --main-soft: #CCFBF1; --accent: #0F766E; }
+  #fx { --main: #2563EB; --main-soft: #DBEAFE; --accent: #1D4ED8; }
+  #lfo, #env { --main: #7C3AED; --main-soft: #EDE9FE; --accent: #6D28D9; }
+  h2 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  .sub { color: var(--main); font-size: 14px; font-style: italic; margin-bottom: 24px; }
+  h3 { font-size: 15px; font-weight: 700; margin: 20px 0 8px; }
+  p.note { font-size: 13px; color: var(--muted); }
+  .kbd-hint { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--muted); background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px; }
+  .kbd-hint b { font-family: var(--mono); color: var(--main); letter-spacing: .12em; }
+
+  .demo { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-top: 16px; }
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 760px) { .demo-grid { grid-template-columns: 1fr; } }
+
+  button { font-family: var(--jp); font-size: 14px; font-weight: 700; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--main); background: var(--main); color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: var(--main); }
+  button:focus-visible, input:focus-visible, .pad:focus-visible, .cnt:focus-visible, .dest:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button:active { transform: translateY(1px); }
+  button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  canvas { width: 100%; height: auto; border-radius: 12px; background: #fff; border: 1px solid var(--border); display: block; }
+
+  .src-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
+  .rec-dot { display: none; width: 10px; height: 10px; border-radius: 50%; background: #EF4444; margin-right: 6px; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: .2; } }
+  button.recording .rec-dot { display: inline-block; }
+  button.recording { background: #EF4444; border-color: #EF4444; }
+  input[type="file"] { display: none; }
+  a.dlbtn { display: inline-block; font-size: 14px; font-weight: 700; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--main); background: #fff; color: var(--main); text-decoration: none; }
+  button.recording2 { background: #EF4444; border-color: #EF4444; color: #fff; }
+
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+  .stat { flex: 1 1 140px; border: 2px solid var(--border); border-radius: 12px; padding: 10px 14px; background: #fff; }
+  .stat .v { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--main); }
+  .stat .l { font-size: 12px; color: var(--muted); }
+
+  .ctl { margin-bottom: 16px; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .ctl label .val { font-family: var(--mono); color: var(--main); }
+  input[type="range"] { width: 100%; accent-color: var(--main); height: 28px; }
+
+  /* slice count buttons */
+  .cnt-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .cnt { flex: 1; border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 8px 4px; text-align: center; cursor: pointer; font-family: var(--mono); font-size: 15px; font-weight: 700; color: var(--muted); }
+  .cnt[aria-pressed="true"] { border-color: var(--main); background: var(--main-soft); color: var(--main); }
+
+  /* pads — matches the "Sampler" icon on the lecture slide */
+  .padgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
+  .pad { aspect-ratio: 1.35; border-radius: 12px; border: 2px solid var(--border); background: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; user-select: none; padding: 4px; transition: transform .06s ease; }
+  .pad .pn { font-family: var(--mono); font-size: 16px; font-weight: 700; color: var(--ink); }
+  .pad .pk { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .pad.lit { background: var(--main-soft); border-color: var(--main); transform: scale(0.96); }
+  .pad.lit .pn { color: var(--main); }
+  .pad.empty { opacity: .35; cursor: default; }
+
+  /* fx chain diagram */
+  .chain { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 6px 0 20px; }
+  .cbox { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 6px 14px; font-size: 13px; font-weight: 700; }
+  .cbox.on { border-color: var(--main); background: var(--main-soft); color: var(--main); }
+  .cbox.src { border-color: var(--ink); }
+  .carrow { font-family: var(--mono); color: var(--muted); font-weight: 700; }
+
+  .fxcard { border: 2px solid var(--border); border-radius: 12px; background: #fff; padding: 14px 16px; margin-bottom: 12px; }
+  .fxcard .fxhead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .fxcard .fxname { font-size: 14px; font-weight: 800; }
+  .fxcard .fxdesc { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .fxtoggle { font-size: 12px; padding: 4px 14px; border-radius: 999px; }
+
+  /* LFO destination buttons (section 6) */
+  .dest-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .dest { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 10px 8px; text-align: center; cursor: pointer; color: var(--ink); }
+  .dest .to { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+  .dest .fx2 { display: block; font-size: 14px; font-weight: 800; color: var(--ink); }
+  .dest[aria-pressed="true"] { border-color: var(--main); background: var(--main-soft); }
+  .dest[aria-pressed="true"] .fx2 { color: var(--main); }
+
+  /* chain map (section 5) */
+  .chainsvg-wrap { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 8px 6px 0; }
+  .chainsvg-wrap svg { width: 100%; height: auto; display: block; }
+  .chainsvg-wrap .grp { transition: opacity .18s ease; }
+  .chainsvg-wrap.fsel .grp { opacity: .15; }
+  .chainsvg-wrap.fsel .g-base { opacity: .5; }
+  .chainsvg-wrap.f-gen .g-gen, .chainsvg-wrap.f-mod .g-mod,
+  .chainsvg-wrap.f-mdl .g-mdl, .chainsvg-wrap.f-fx .g-fx { opacity: 1 !important; }
+  .termgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
+  @media (max-width: 860px) { .termgrid { grid-template-columns: 1fr 1fr; } }
+  .term { text-align: left; background: #fff; color: var(--ink); border: 2px solid var(--border); border-top-width: 5px; border-radius: 12px; padding: 12px 14px; cursor: pointer; font-weight: 400; }
+  .term b { display: block; font-size: 14px; margin-bottom: 4px; }
+  .term span { display: block; font-size: 12px; color: var(--muted); line-height: 1.55; font-weight: 400; }
+  .term[aria-pressed="true"] { background: var(--card); }
+
+  /* history */
+  .timeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 8px; }
+  @media (max-width: 860px) { .timeline { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px) { .timeline { grid-template-columns: 1fr; } }
+  .era { border-radius: 14px; border: 1.5px solid var(--border); background: var(--card); padding: 18px; border-top-width: 5px; }
+  .era .year { font-family: var(--mono); font-weight: 700; font-size: 14px; }
+  .era h3 { margin: 6px 0 6px; }
+  .era p { font-size: 13px; color: var(--muted); }
+  .takeaway { margin-top: 24px; border-radius: 12px; background: var(--card); padding: 16px 20px; font-size: 14px; }
+  .takeaway strong { color: var(--accent); }
+
+  .msg { font-size: 13px; color: var(--accent); margin-top: 8px; min-height: 1.4em; }
+
+  #monitor { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: #101623; color: #D7E4E2; font-family: var(--mono); font-size: 12.5px; padding: 10px 20px; border-top: 3px solid var(--main); max-height: 104px; overflow: hidden; }
+  #monitor .mtitle { font-size: 10px; letter-spacing: .15em; color: var(--main); text-transform: uppercase; margin-bottom: 4px; }
+  #monitor .line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #monitor .hexpart { color: #F2A79B; font-weight: 700; }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:70;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid #D8DCE4;padding:9px 24px;font-family:sans-serif;font-size:13.5px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+  <a href="./index.html" style="font-weight:700;color:#1F2430;text-decoration:none;margin-right:8px;">🎛 デジタル音源ラボ</a>
+  <a href="./midi.html" style="color:#D97706;text-decoration:none;font-weight:400;opacity:.75;">01 MIDI</a>
+  <a href="./synth.html" style="color:#0D9488;text-decoration:none;font-weight:400;opacity:.75;">02 シンセ</a>
+  <a href="./sampler.html" style="color:#B85348;text-decoration:none;font-weight:800;border-bottom:2.5px solid #B85348;">03 サンプラー</a>
+</nav>
+
+
+<header class="hero">
+  <div class="eyebrow">Interactive Lecture Notes</div>
+  <h1>サンプラーを<span class="accent">触って</span>理解する</h1>
+  <p class="lede">サンプラーの正体は「録音した<strong>数値の列</strong>を、好きな位置から・好きな速度で読み出す装置」です。このページでは <strong>①録音 → ②スライス → ③再生速度 → ④モディファイア → ⑤エフェクト → ⑥⑦モジュレーション</strong> の順に、実際に音を録って・刻んで・加工しながらサンプリング再生の原理をたどります。パッドはキーボードの <b class="k">A S D F G H J K</b>（+ <b class="k">Q W E R T Y U I</b>）でも叩けます。</p>
+</header>
+
+<main>
+
+<!-- ============ 1. record ============ -->
+<section id="source">
+  <h2>① 音は「数値の列」として録音される</h2>
+  <p class="sub">サンプリング＝1秒間に数万回、音の波の高さを測って数値にすること（PCM）</p>
+  <p class="note">マイクで自分の声やビートボックスを録るのがおすすめです。マイクが使えない環境では「デモ音を生成」で合成ドラムループを作れます。手元のWAV/MP3を読み込むこともできます。</p>
+
+  <div class="demo">
+    <div class="src-row">
+      <button id="btnRec"><span class="rec-dot"></span><span id="recLabel">🎤 マイクで録音（最長4秒）</span></button>
+      <button id="btnDemo" class="ghost">🥁 デモ音を生成</button>
+      <button id="btnFile" class="ghost">📄 ファイルを読み込む</button>
+      <input type="file" id="fileInput" accept="audio/*">
+    </div>
+    <canvas id="waveMain" width="1020" height="220"></canvas>
+    <div class="msg" id="srcMsg"></div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="stDur">—</div><div class="l">長さ（秒）</div></div>
+      <div class="stat"><div class="v" id="stRate">—</div><div class="l">サンプルレート（回/秒）</div></div>
+      <div class="stat"><div class="v" id="stCount">—</div><div class="l">数値の個数（サンプル数）</div></div>
+    </div>
+    <p class="note" style="margin-top:12px;">たとえば44,100Hzで2秒録音すると、音は「88,200個の数値」になります。サンプラーがやっていることは、この数値の列を<strong style="color:var(--ink);">どこから・どれだけ・どの速度で</strong>読み出すかの指定だけです。</p>
+
+    <h3>演奏を書き出す（リサンプリング）</h3>
+    <div class="src-row">
+      <button id="btnMRec" class="ghost">⏺ 出力を録音</button>
+      <a id="mDl" class="dlbtn" style="display:none;" download="sampler_take.wav">💾 WAVをダウンロード</a>
+      <button id="btnMUse" class="ghost" disabled>🔁 ①の素材にする</button>
+    </div>
+    <p class="note">パッド演奏をエフェクト込みの最終出力で録音し、WAV（無圧縮PCM）として保存できます。保存したWAVはそのままサンプラーの音素材で、SoundFontの材料にもマイコンでの再生用データにもなります。「①の素材にする」を押すと録った演奏をもう一度スライスできます——サンプラーの出力を再びサンプリングする<strong style="color:var(--ink);">リサンプリング</strong>、MPC以来の定番テクニックです。</p>
+  </div>
+</section>
+
+<!-- ============ 2. slice ============ -->
+<section id="slice">
+  <h2>② スライス＝「読み出し開始位置」を指定するだけ</h2>
+  <p class="sub">波形を切り分けてパッドに割り当てる。データは複製されず、開始点と長さのメモだけが増える</p>
+
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <h3 style="margin-top:0;">スライス数</h3>
+        <div class="cnt-row" role="group" aria-label="スライス数">
+          <button class="cnt" data-n="4">4</button>
+          <button class="cnt" data-n="8" aria-pressed="true">8</button>
+          <button class="cnt" data-n="16">16</button>
+        </div>
+        <canvas id="waveSlice" width="500" height="180"></canvas>
+        <p class="note" style="margin-top:10px;">波形を直接クリックしてもそのスライスが鳴ります。緑の縦線が再生位置（プレイヘッド）です。</p>
+      </div>
+      <div>
+        <h3 style="margin-top:0;">パッド</h3>
+        <div class="padgrid" id="padgrid"></div>
+        <span class="kbd-hint">キー: <b>A S D F G H J K</b> ＝ パッド1–8、<b>Q W E R T Y U I</b> ＝ パッド9–16</span>
+        <div style="margin-top:12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <button id="btnMidi" class="ghost">🎹 MIDI機器を接続</button>
+          <span class="note" id="midiStatus"></span>
+        </div>
+        <p class="note" style="margin-top:8px;">MIDIパッド／鍵盤のノート36（C1）〜51がパッド1〜16に対応（MPC配列）。ベロシティで音量が変わり、CC1（モジュレーションホイール）は⑥のLFOの深さを動かします。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. rate ============ -->
+<section id="rate">
+  <h2>③ 速度を変えると、ピッチも一緒に変わる</h2>
+  <p class="sub">初期のサンプラーはテープと同じ。速く読めば高く・短く、遅く読めば低く・長くなる</p>
+
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <div class="ctl">
+          <label>再生速度（playbackRate） <span class="val" id="rateVal">1.00x / +0.0 半音</span></label>
+          <input type="range" id="rateSlider" min="-12" max="12" step="1" value="0">
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <button id="btnRev" class="ghost" aria-pressed="false">⏪ リバース再生</button>
+          <button id="btnRateReset" class="ghost">リセット</button>
+        </div>
+        <canvas id="waveRate" width="500" height="140" style="margin-top:16px;"></canvas>
+        <p class="note" style="margin-top:8px;">波形をクリックしてもそのスライスが鳴ります。</p>
+      </div>
+      <div>
+        <p class="note">スライダーは半音単位です。<strong style="color:var(--ink);">+12半音（2倍速）にすると長さは半分・1オクターブ上</strong>になります。速度とピッチが独立に変えられる「タイムストレッチ」は、ずっと後に登場した信号処理技術です。ここではあえて古典的なサンプラーの挙動（速度＝ピッチ）を体験してください。パッドを叩きながら動かすと違いがよく分かります。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. fx ============ -->
+<section id="modifier">
+  <h2>④ モディファイア＝音を削って整える</h2>
+  <p class="sub">フィルター（VCF）とアンプ（VCA）。シンセと共通の「加工部」</p>
+
+  <div class="demo">
+    <div class="chain">
+      <span class="cbox src">スライス再生</span><span class="carrow">→</span>
+      <span class="cbox" id="chFilter">フィルター VCF</span><span class="carrow">→</span>
+      <span class="cbox" id="chAmp">アンプ VCA</span><span class="carrow">→</span>
+      <span class="cbox src">⑤エフェクトへ</span>
+    </div>
+
+    <div class="demo-grid">
+      <div>
+        <div class="fxcard">
+          <div class="fxhead"><span class="fxname">フィルター（ローパス）</span><button class="fxtoggle ghost" id="tgFilter" aria-pressed="false">OFF</button></div>
+          <div class="fxdesc">カットオフより高い成分を削る。閉じるほど「こもった」音に。減算合成の中核部品。</div>
+          <div class="ctl">
+            <label>カットオフ周波数 <span class="val" id="cutVal">2000 Hz</span></label>
+            <input type="range" id="cutSlider" min="200" max="12000" step="50" value="2000">
+          </div>
+        </div>
+        <div class="fxcard">
+          <div class="fxhead"><span class="fxname">アンプ（音量）</span><span class="val" style="font-family:var(--mono); font-size:12px; color:var(--muted);">常時ON</span></div>
+          <div class="fxdesc">最終的な音量を決める増幅段。シンセではここにADSRをかけて音の「輪郭」を作る。</div>
+          <div class="ctl">
+            <label>音量 <span class="val" id="ampVal">100 %</span></label>
+            <input type="range" id="ampSlider" min="0" max="100" step="1" value="100">
+          </div>
+        </div>
+      </div>
+      <div>
+        <canvas id="waveFx" width="500" height="140" style="margin-bottom:14px;"></canvas>
+        <p class="note">フィルターもアンプも「すでにある音を削る・整える」処理で、新しい音は生みません。だからジェネレーターがサンプル再生でもオシレーターでも、まったく同じ部品が使えます。⑤の全体図で言う<strong style="color:var(--ink);">モディファイア（加工部）</strong>です。</p>
+        <p class="note" style="margin-top:10px;">試す：カットオフを閉じてパッドを連打しながら、少しずつ開けてみてください。DJのフィルター操作と同じ現象が起きます。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. effects ============ -->
+<section id="fx">
+  <h2>⑤ エフェクト＝後段の空間系・時間系処理</h2>
+  <p class="sub">ディレイ・リバーブ・コーラス。楽器の「外側」でかける加工</p>
+
+  <div class="demo">
+    <div class="chain">
+      <span class="cbox src">④モディファイアから</span><span class="carrow">→</span>
+      <span class="cbox" id="chDelay">ディレイ</span><span class="carrow">→</span>
+      <span class="cbox" id="chRev">リバーブ</span><span class="carrow">→</span>
+      <span class="cbox" id="chChorus">コーラス</span><span class="carrow">→</span>
+      <span class="cbox src">出力 🔊</span>
+    </div>
+
+    <div class="demo-grid">
+      <div>
+        <div class="fxcard">
+          <div class="fxhead"><span class="fxname">ディレイ（やまびこ）</span><button class="fxtoggle ghost" id="tgDelay" aria-pressed="false">OFF</button></div>
+          <div class="fxdesc">音を一定時間遅らせて戻す。フィードバック量を上げると反復が増える。</div>
+          <div class="ctl">
+            <label>ディレイタイム <span class="val" id="dtVal">0.30 秒</span></label>
+            <input type="range" id="dtSlider" min="0.05" max="0.8" step="0.01" value="0.30">
+          </div>
+          <div class="ctl">
+            <label>フィードバック <span class="val" id="fbVal">40 %</span></label>
+            <input type="range" id="fbSlider" min="0" max="85" step="1" value="40">
+          </div>
+        </div>
+        <div class="fxcard">
+          <div class="fxhead"><span class="fxname">リバーブ（残響）</span><button class="fxtoggle ghost" id="tgRev" aria-pressed="false">OFF</button></div>
+          <div class="fxdesc">無数の反射音を畳み込んで空間の響きを再現（コンボリューション）。</div>
+          <div class="ctl">
+            <label>センド量 <span class="val" id="rvVal">50 %</span></label>
+            <input type="range" id="rvSlider" min="0" max="100" step="1" value="50">
+          </div>
+        </div>
+        <div class="fxcard">
+          <div class="fxhead"><span class="fxname">コーラス（厚み）</span><button class="fxtoggle ghost" id="tgChorus" aria-pressed="false">OFF</button></div>
+          <div class="fxdesc">数ミリ秒だけ遅らせてゆらした音を重ねる。1人の声が数人分に聞こえる合唱効果。</div>
+          <div class="ctl">
+            <label>揺れの深さ <span class="val" id="cdVal">5.0 ms</span></label>
+            <input type="range" id="cdSlider" min="1" max="12" step="0.5" value="5">
+          </div>
+        </div>
+      </div>
+      <div>
+        <canvas id="waveFx2" width="500" height="140" style="margin-bottom:14px;"></canvas>
+        <p class="note">試してほしい組み合わせ：</p>
+        <p class="note" style="margin-top:8px;">・声を録音 → 16スライス → 高速で連打 →「ボーカルチョップ」<br>
+        ・−12半音 + ローパス →「ローファイ」な質感<br>
+        ・リバース + リバーブ大 → アンビエントな効果音<br>
+        ・短いスライス + ディレイのフィードバック高め → リズムが増殖<br>
+        ・声 + コーラス + リバーブ → 1人多重コーラス</p>
+        <p class="note" style="margin-top:12px;">ここまでの流れがそのまま <strong style="color:var(--ink);">MPC以降のビートメイキングの基本操作</strong>です。録る・刻む・並べ替える・加工する——素材が何であれ、原理はこのページで触った操作の組み合わせだけです。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. LFO ============ -->
+<section id="lfo">
+  <h2>⑥ LFO＝周期的なゆらぎを掛ける</h2>
+  <p class="sub">モジュレーションその1。低周波の波で、ピッチ・音量・フィルターの「ツマミ」を自動で揺らす</p>
+
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;">
+          <button id="btnLfoTgl" aria-pressed="false">LFO OFF</button>
+          <button id="btnLoop" class="ghost" aria-pressed="false">🔁 スライスをループ再生</button>
+        </div>
+        <h3 style="margin-top:0;">掛け先</h3>
+        <div class="dest-row" id="destRow">
+          <button type="button" class="dest" data-dest="pitch" aria-pressed="true"><span class="to">ピッチに掛ける</span><span class="fx2">ビブラート</span></button>
+          <button type="button" class="dest" data-dest="amp" aria-pressed="false"><span class="to">音量に掛ける</span><span class="fx2">トレモロ</span></button>
+          <button type="button" class="dest" data-dest="filter" aria-pressed="false"><span class="to">フィルターに掛ける</span><span class="fx2">ワウ</span></button>
+        </div>
+        <div class="ctl">
+          <label>揺れの深さ <span class="val" id="lfoDepthVal">60</span></label>
+          <input type="range" id="lfoDepthSlider" min="0" max="100" step="1" value="60">
+        </div>
+        <div class="ctl">
+          <label>LFO速度 <span class="val" id="lfoRateVal">5.0 Hz</span></label>
+          <input type="range" id="lfoRateSlider" min="0.1" max="20" step="0.1" value="5">
+        </div>
+      </div>
+      <div>
+        <canvas id="lfoCv" width="500" height="150"></canvas>
+        <p class="note" style="margin-top:8px;" id="lfoCap">LFO波形 → ピッチを揺らしている（ビブラート）</p>
+        <p class="note" style="margin-top:10px;">LFO（Low Frequency Oscillator）自体は耳に聞こえない低周波の波で、音の経路には入りません。パッドを叩くか「ループ再生」で音を鳴らしながら、掛け先を切り替えて聴き比べてください。②のコーラスの正体も「短いディレイタイムをLFOで揺らしたもの」——同じ部品の使い回しです。ワウを選ぶと④のフィルターが自動でONになります。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. Envelope ============ -->
+<section id="env">
+  <h2>⑦ エンベロープ（EG）＝時間の輪郭を与える</h2>
+  <p class="sub">モジュレーションその2。押してから離すまでの音量カーブをADSRの4つで描く</p>
+
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <button id="btnEnvMode" aria-pressed="false" style="margin-bottom:16px;">エンベロープモード OFF</button>
+        <div class="ctl"><label>Attack 立ち上がり <span class="val" id="envAVal">250 ms</span></label><input type="range" id="envASlider" min="1" max="2000" step="1" value="250"></div>
+        <div class="ctl"><label>Decay 減衰 <span class="val" id="envDVal">300 ms</span></label><input type="range" id="envDSlider" min="1" max="2000" step="1" value="300"></div>
+        <div class="ctl"><label>Sustain 維持レベル（時間ではなく音量） <span class="val" id="envSVal">60 %</span></label><input type="range" id="envSSlider" min="0" max="100" step="1" value="60"></div>
+        <div class="ctl"><label>Release 余韻 <span class="val" id="envRVal">600 ms</span></label><input type="range" id="envRSlider" min="1" max="3000" step="1" value="600"></div>
+        <span class="kbd-hint">モードON中はパッド／キー（<b>A〜K, Q〜I</b>）を<b>押している間</b>鳴り、離すとReleaseで消えます</span>
+      </div>
+      <div>
+        <canvas id="envCv" width="500" height="160"></canvas>
+        <p class="note" style="margin-top:8px;">現在のエンベロープ形状（Sだけ縦軸＝レベル、A・D・Rは横軸＝時間）</p>
+        <p class="note" style="margin-top:10px;">エンベロープ（envelope＝封筒）は振動を外から包む「包絡線」。④のアンプ（VCA）にこの形を与えると音の輪郭になります。サンプラーでは<strong style="color:var(--ink);">押している間スライスを短くループさせてSustain区間を作る</strong>のが定石で（実機のAkai／SFZ音源と同じ仕組み）、このモードでも同じことをしています。Attackを2秒にすると打楽器がパッド系の音色に、Release 0にすると歯切れの良いゲーム音になる——同じ素材でも輪郭で楽器が変わります。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. chain map ============ -->
+<section id="chainmap">
+  <h2>⑧ 全体像:シグナルチェーン(信号経路)</h2>
+  <p class="sub">①サンプラーと②シンセの違いは「ジェネレーター」だけ。後段は同じ道具箱</p>
+
+  <div class="demo">
+    <div class="chainsvg-wrap" id="chainWrap">
+      <svg viewBox="-165 0 1125 348" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="シグナルチェーンの構成図。MIDIの演奏指示を受けたジェネレーターからフィルター、アンプ、エフェクトを経て出力へ音声信号が流れ、EGとLFOが制御信号として各パラメータを動かす。ジェネレーターからモジュレーターまでを点線で囲んだ一式がGM音源モジュール">
+        <defs>
+          <marker id="arrInk" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#1F2430"/></marker>
+          <marker id="arrGray" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#5C6270"/></marker>
+          <marker id="arrVio" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#7C3AED"/></marker>
+        </defs>
+
+        
+
+        <!-- MIDI input + GM module enclosure -->
+        <g class="grp g-base" font-family="sans-serif">
+          <rect x="-158" y="82" width="130" height="66" rx="10" fill="#F2F4F8" stroke="#5C6270" stroke-width="2" stroke-dasharray="6 4"/>
+          <text x="-93" y="108" font-size="14" font-weight="700" font-family="monospace" text-anchor="middle" fill="#1F2430">MIDI</text>
+          <text x="-93" y="130" font-size="11" text-anchor="middle" fill="#5C6270">（演奏指示・音ではない）</text>
+          <line x1="-28" y1="115" x2="2" y2="115" stroke="#5C6270" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrGray)"/>
+          <rect x="0" y="30" width="812" height="282" rx="14" fill="none" stroke="#B85348" stroke-width="1.8" stroke-dasharray="8 6"/>
+          <text x="406" y="334" font-size="12.5" font-weight="700" text-anchor="middle" fill="#B85348">GM音源モジュール／音源チップ（SC-55、SAM2695 など）＝この一式が箱に入った完成品</text>
+        </g>
+
+        <!-- audio path arrows + output -->
+        <g class="grp g-base">
+          <line x1="205" y1="115" x2="248" y2="115" stroke="#1F2430" stroke-width="2.5" marker-end="url(#arrInk)"/>
+          <line x1="395" y1="115" x2="428" y2="115" stroke="#1F2430" stroke-width="2.5" marker-end="url(#arrInk)"/>
+          <line x1="575" y1="115" x2="618" y2="115" stroke="#1F2430" stroke-width="2.5" marker-end="url(#arrInk)"/>
+          <line x1="800" y1="115" x2="838" y2="115" stroke="#1F2430" stroke-width="2.5" marker-end="url(#arrInk)"/>
+          <rect x="845" y="82" width="105" height="66" rx="10" fill="#F2F4F8" stroke="#1F2430" stroke-width="2"/>
+          <text x="897" y="110" font-size="14" font-weight="700" text-anchor="middle" fill="#1F2430">出力</text>
+          <text x="897" y="134" font-size="16" text-anchor="middle">🔊</text>
+        </g>
+
+        <!-- generator -->
+        <g class="grp g-gen" font-family="sans-serif">
+          <rect x="10" y="70" width="195" height="90" rx="10" fill="#fff" stroke="#B85348" stroke-width="2.5"/>
+          <text x="107" y="98" font-size="15" font-weight="700" text-anchor="middle" fill="#B85348">ジェネレーター</text>
+          <text x="107" y="116" font-size="11" text-anchor="middle" fill="#5C6270">（音源部）</text>
+          <text x="107" y="143" font-size="11.5" text-anchor="middle" fill="#1F2430">①サンプル再生／②オシレーター</text>
+        </g>
+
+        <!-- modifier -->
+        <g class="grp g-mod" font-family="sans-serif">
+          <path d="M255,66 L255,54 L575,54 L575,66" fill="none" stroke="#0D9488" stroke-width="2"/>
+          <text x="415" y="44" font-size="13" font-weight="700" text-anchor="middle" fill="#0D9488">モディファイア（加工部）</text>
+          <rect x="255" y="70" width="140" height="90" rx="10" fill="#fff" stroke="#0D9488" stroke-width="2.5"/>
+          <text x="325" y="105" font-size="14" font-weight="700" text-anchor="middle" fill="#1F2430">フィルター</text>
+          <text x="325" y="130" font-size="12" font-family="monospace" text-anchor="middle" fill="#0D9488">VCF</text>
+          <rect x="435" y="70" width="140" height="90" rx="10" fill="#fff" stroke="#0D9488" stroke-width="2.5"/>
+          <text x="505" y="105" font-size="14" font-weight="700" text-anchor="middle" fill="#1F2430">アンプ（音量）</text>
+          <text x="505" y="130" font-size="12" font-family="monospace" text-anchor="middle" fill="#0D9488">VCA</text>
+        </g>
+
+        <!-- effects -->
+        <g class="grp g-fx" font-family="sans-serif">
+          <rect x="625" y="70" width="175" height="90" rx="10" fill="#fff" stroke="#60A5FA" stroke-width="2.5"/>
+          <text x="712" y="100" font-size="14" font-weight="700" text-anchor="middle" fill="#2563EB">エフェクト</text>
+          <text x="712" y="122" font-size="11.5" text-anchor="middle" fill="#1F2430">ディレイ／リバーブ</text>
+          <text x="712" y="140" font-size="11.5" text-anchor="middle" fill="#1F2430">コーラス など</text>
+        </g>
+
+        
+        <!-- modulators -->
+        <g class="grp g-mdl" font-family="sans-serif">
+          <path d="M340,222 L317,170" fill="none" stroke="#7C3AED" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrVio)"/>
+          <path d="M398,222 C440,200 478,186 500,170" fill="none" stroke="#7C3AED" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrVio)"/>
+          <path d="M500,222 C445,206 392,190 358,170" fill="none" stroke="#7C3AED" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrVio)"/>
+          <path d="M470,254 C300,268 148,228 112,168" fill="none" stroke="#7C3AED" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrVio)"/>
+          <rect x="285" y="225" width="125" height="62" rx="10" fill="#fff" stroke="#7C3AED" stroke-width="2.5"/>
+          <text x="347" y="250" font-size="14" font-weight="700" font-family="monospace" text-anchor="middle" fill="#7C3AED">EG</text>
+          <text x="347" y="270" font-size="11" text-anchor="middle" fill="#5C6270">（ADSR）＝⑦</text>
+          <rect x="470" y="225" width="125" height="62" rx="10" fill="#fff" stroke="#7C3AED" stroke-width="2.5"/>
+          <text x="532" y="250" font-size="14" font-weight="700" font-family="monospace" text-anchor="middle" fill="#7C3AED">LFO</text>
+          <text x="532" y="270" font-size="11" text-anchor="middle" fill="#5C6270">（周期的なゆらぎ）＝⑥</text>
+          <text x="406" y="304" font-size="12.5" font-weight="700" text-anchor="middle" fill="#7C3AED">モジュレーター（制御部）— 音の通り道には入らず、パラメータを時間変化させる</text>
+        </g>
+      </svg>
+    </div>
+    <p class="note" style="margin-top:10px;">実線＝音声信号 ／ <strong style="color:#7C3AED;">紫の点線＝制御信号（⑥⑦のモジュレーター）</strong> ／ グレーの点線＝MIDIの演奏指示</p>
+
+    <div class="termgrid">
+      <button type="button" class="term" data-g="gen" style="border-top-color:#B85348;" aria-pressed="false">
+        <b style="color:#B85348;">ジェネレーター（音源部）</b>
+        <span>音のデータを生む部分。オシレーターまたはサンプル再生。①と②の違いはここだけ。</span>
+      </button>
+      <button type="button" class="term" data-g="mod" style="border-top-color:#0D9488;" aria-pressed="false">
+        <b style="color:#0D9488;">モディファイア（加工部）</b>
+        <span>フィルターとアンプ。音を削り、整える。アナログ用語ではVCF・VCA。</span>
+      </button>
+      
+      <button type="button" class="term" data-g="mdl" style="border-top-color:#7C3AED;" aria-pressed="false">
+        <b style="color:#7C3AED;">モジュレーター（制御部）</b>
+        <span>EGやLFO。音の経路には入らず、パラメータを時間変化させる「操作する手」。⑥⑦で体験。</span>
+      </button>
+      <button type="button" class="term" data-g="fx" style="border-top-color:#2563EB;" aria-pressed="false">
+        <b style="color:#2563EB;">エフェクト</b>
+        <span>後段の空間系・時間系処理。ディレイ、リバーブ、コーラスなど。</span>
+      </button>
+    </div>
+
+    <p class="note" style="margin-top:16px;">カードをクリックすると図の該当部分がハイライトされます。このアプリの①〜③はジェネレーター（サンプルの読み出し方）、④がモディファイア、⑤がエフェクト、⑥⑦がモジュレーターに対応します。モジュレーターだけは実線の経路に入らず、経路上のパラメータへ向かう<strong style="color:#7C3AED;">紫の点線</strong>である点に注目——LFOからジェネレーターへの線がビブラート、フィルターへの線がワウ、EGからアンプへの線がADSRです。</p>
+    <p class="note" style="margin-top:10px;"><strong style="color:var(--ink);">GM MIDI音源はどこ？</strong> — 図の赤い点線が答えです。GM音源モジュール（Roland SC-55やPONKEYのSAM2695チップなど）は、<strong style="color:var(--ink);">このチェーン一式を1つの箱／チップに収めた完成品</strong>です。中のジェネレーターはROMに録音済みのサンプルを再生する①方式（ロンプラー）で、リバーブやコーラスも内蔵。そしてMIDIは音そのものではなく「どの音色を・どの高さで・いつ鳴らすか」という<strong style="color:var(--ink);">演奏指示（左の点線）</strong>を外から送るだけです。楽譜（MIDI）と演奏者＋楽器一式（GM音源）の関係、と考えると分かりやすいです。EGやLFOも箱の中に入っていて、たとえばMIDIのCC1（モジュレーションホイール）は「中のLFOの深さを動かせ」という指示です。</p>
+  </div>
+</section>
+
+<!-- ============ 5. history ============ -->
+<section id="history">
+  <h2>サンプラー小史</h2>
+  <p class="sub">「録音の再利用」が楽器になるまで</p>
+  <div class="timeline">
+    <div class="era" style="border-top-color: var(--blue);">
+      <div class="year" style="color: var(--blue);">1963–</div>
+      <h3>Mellotron</h3>
+      <p>鍵盤ごとに磁気テープを仕込んだ元祖。物理的にテープを再生するため、音の長さに限界があった。</p>
+    </div>
+    <div class="era" style="border-top-color: var(--violet);">
+      <div class="year" style="color: var(--violet);">1979</div>
+      <h3>Fairlight CMI</h3>
+      <p>世界初のデジタルサンプラー。当時は家1軒分の価格。録音を鍵盤で演奏する概念を確立。</p>
+    </div>
+    <div class="era" style="border-top-color: var(--accent);">
+      <div class="year" style="color: var(--accent);">1986–88</div>
+      <h3>Akai S900 / MPC</h3>
+      <p>低価格化でヒップホップ制作の中心に。パッドで叩くMPCスタイルは今もコントローラーの標準形。</p>
+    </div>
+    <div class="era" style="border-top-color: var(--main);">
+      <div class="year" style="color: var(--main);">現在</div>
+      <h3>ソフトウェア</h3>
+      <p>DAWやブラウザ（Web Audio API）で無料に。このページ自体が1台のサンプラーとして動いている。</p>
+    </div>
+  </div>
+  <div class="takeaway"><strong>まとめ：</strong>サンプラーは「数値列の読み出し装置」。①録音でデータを作り、②スライスで読み出し位置を決め、③速度でピッチと長さが変わり、④エフェクトで出口を加工する。スライドの分類で言えば、シンセサイザー（波形を計算で作る）との違いは<strong>音のデータを「作る」か「持ってくる」か</strong>だけで、その後の処理は共通です。</div>
+</section>
+
+</main>
+
+<div id="monitor" aria-live="polite">
+  <div class="mtitle">Sampler Monitor</div>
+  <div class="line" id="mline1">パッドを叩くとここに再生イベントが表示されます</div>
+  <div class="line" id="mline2"></div>
+  <div class="line" id="mline3"></div>
+</div>
+
+<script>
+'use strict';
+// ===================== state =====================
+let ctx = null;
+let buffer = null;        // AudioBuffer (forward)
+let revBuffer = null;     // reversed copy
+let sliceCount = 8;
+let semitones = 0;
+let reversed = false;
+let activePlays = [];     // { start: ctxTime, s0, s1(sec, forward coords), rate }
+let lastPad = -1;
+
+// fx state
+const fx = { filter: false, delay: false, rev: false, chorus: false };
+
+// nodes (built lazily)
+let lfoOsc, lfoPitchTap, lfoAmpTap, lfoFilterTap;
+let master, filterNode, filterBypass, filterIn, ampNode,
+    delayIn, delayNode, fbGain, delayWet,
+    revIn, convolver, revWet,
+    chorusIn, chorusDelay, chLfo, chDepth, chorusWet;
+
+function ac() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    buildGraph();
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  return ctx;
+}
+
+function buildGraph() {
+  master = ctx.createGain(); master.gain.value = 0.9;
+  master.connect(ctx.destination);
+
+  // filter stage: filterIn -> (bypass gain) or (biquad) -> stageOut
+  filterIn = ctx.createGain();
+  filterNode = ctx.createBiquadFilter();
+  filterNode.type = 'lowpass'; filterNode.frequency.value = 2000; filterNode.Q.value = 1;
+  filterBypass = ctx.createGain(); filterBypass.gain.value = 1;
+  const stageOut = ctx.createGain();
+  filterIn.connect(filterBypass); filterBypass.connect(stageOut);
+  filterIn.connect(filterNode);   filterNode.connect(stageOut);
+  filterNode.disconnect(); filterIn.disconnect(filterNode); // start bypassed
+  filterIn._wired = false;
+
+  // amp stage (VCA)
+  ampNode = ctx.createGain(); ampNode.gain.value = 1.0;
+  stageOut.connect(ampNode);
+
+  // dry path
+  ampNode.connect(master);
+
+  // delay send
+  delayIn = ctx.createGain(); delayIn.gain.value = 0;
+  delayNode = ctx.createDelay(2.0); delayNode.delayTime.value = 0.3;
+  fbGain = ctx.createGain(); fbGain.gain.value = 0.4;
+  delayWet = ctx.createGain(); delayWet.gain.value = 0.7;
+  ampNode.connect(delayIn); delayIn.connect(delayNode);
+  delayNode.connect(fbGain); fbGain.connect(delayNode);
+  delayNode.connect(delayWet); delayWet.connect(master);
+
+  // reverb send
+  revIn = ctx.createGain(); revIn.gain.value = 0;
+  convolver = ctx.createConvolver();
+  convolver.buffer = makeImpulse(2.2, 2.5);
+  revWet = ctx.createGain(); revWet.gain.value = 0.8;
+  ampNode.connect(revIn); revIn.connect(convolver); convolver.connect(revWet); revWet.connect(master);
+
+  // chorus send (short modulated delay)
+  chorusIn = ctx.createGain(); chorusIn.gain.value = 0;
+  chorusDelay = ctx.createDelay(0.06); chorusDelay.delayTime.value = 0.018;
+  chLfo = ctx.createOscillator(); chLfo.frequency.value = 0.8;
+  chDepth = ctx.createGain(); chDepth.gain.value = 0.005;
+  chLfo.connect(chDepth); chDepth.connect(chorusDelay.delayTime); chLfo.start();
+  chorusWet = ctx.createGain(); chorusWet.gain.value = 0.9;
+  ampNode.connect(chorusIn); chorusIn.connect(chorusDelay); chorusDelay.connect(chorusWet); chorusWet.connect(master);
+
+  // LFO bus (section 6): one low-frequency oscillator, three depth taps
+  lfoOsc = ctx.createOscillator(); lfoOsc.frequency.value = lfoRateHz;
+  lfoPitchTap = ctx.createGain(); lfoPitchTap.gain.value = 0;
+  lfoAmpTap = ctx.createGain(); lfoAmpTap.gain.value = 0;
+  lfoFilterTap = ctx.createGain(); lfoFilterTap.gain.value = 0;
+  lfoOsc.connect(lfoPitchTap); lfoOsc.connect(lfoAmpTap); lfoOsc.connect(lfoFilterTap);
+  lfoAmpTap.connect(ampNode.gain);
+  lfoFilterTap.connect(filterNode.frequency);
+  lfoOsc.start();
+  applyLfo();
+
+  master._stageOut = stageOut;
+}
+
+function setFilterEnabled(on) {
+  if (!ctx) return;
+  if (on && !filterIn._wired) {
+    filterIn.connect(filterNode); filterNode.connect(master._stageOut);
+    filterBypass.gain.value = 0; filterIn._wired = true;
+  } else if (!on && filterIn._wired) {
+    filterIn.disconnect(filterNode); filterNode.disconnect();
+    filterBypass.gain.value = 1; filterIn._wired = false;
+  }
+}
+
+function makeImpulse(seconds, decay) {
+  const rate = ctx.sampleRate, len = Math.floor(rate * seconds);
+  const ir = ctx.createBuffer(2, len, rate);
+  for (let c = 0; c < 2; c++) {
+    const d = ir.getChannelData(c);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay);
+  }
+  return ir;
+}
+
+// ===================== monitor =====================
+const mlines = [document.getElementById('mline1'), document.getElementById('mline2'), document.getElementById('mline3')];
+const hist = [];
+function log(msg) {
+  hist.unshift(msg); if (hist.length > 3) hist.pop();
+  mlines.forEach((el, i) => {
+    el.innerHTML = hist[i] || '';
+    el.style.opacity = i === 0 ? 1 : (i === 1 ? 0.6 : 0.35);
+  });
+}
+function hl(s) { return '<span class="hexpart">' + s + '</span>'; }
+
+// ===================== source: demo loop =====================
+async function makeDemoLoop() {
+  const rate = 44100, dur = 2.0;
+  const off = new OfflineAudioContext(1, rate * dur, rate);
+  const step = dur / 8;
+  const kick = (t) => {
+    const o = off.createOscillator(), g = off.createGain();
+    o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.13);
+    g.gain.setValueAtTime(1.0, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    o.connect(g); g.connect(off.destination); o.start(t); o.stop(t + 0.25);
+  };
+  const noiseBuf = (() => {
+    const b = off.createBuffer(1, rate * 0.3, rate), d = b.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return b;
+  })();
+  const snare = (t) => {
+    const n = off.createBufferSource(); n.buffer = noiseBuf;
+    const f = off.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 0.8;
+    const g = off.createGain(); g.gain.setValueAtTime(0.7, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+    n.connect(f); f.connect(g); g.connect(off.destination); n.start(t); n.stop(t + 0.2);
+    const o = off.createOscillator(); o.frequency.value = 185;
+    const g2 = off.createGain(); g2.gain.setValueAtTime(0.4, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    o.connect(g2); g2.connect(off.destination); o.start(t); o.stop(t + 0.1);
+  };
+  const hat = (t, len) => {
+    const n = off.createBufferSource(); n.buffer = noiseBuf;
+    const f = off.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7500;
+    const g = off.createGain(); g.gain.setValueAtTime(0.28, t); g.gain.exponentialRampToValueAtTime(0.001, t + len);
+    n.connect(f); f.connect(g); g.connect(off.destination); n.start(t); n.stop(t + len + 0.02);
+  };
+  const stab = (t) => {
+    [220, 261.6, 329.6].forEach(fq => {
+      const o = off.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fq;
+      const f = off.createBiquadFilter(); f.type = 'lowpass'; f.frequency.setValueAtTime(2400, t); f.frequency.exponentialRampToValueAtTime(300, t + 0.18);
+      const g = off.createGain(); g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+      o.connect(f); f.connect(g); g.connect(off.destination); o.start(t); o.stop(t + 0.22);
+    });
+  };
+  kick(0 * step); kick(3 * step + step * 0.5); kick(4 * step);
+  snare(2 * step); snare(6 * step);
+  for (let i = 0; i < 8; i++) hat(i * step, i % 2 ? 0.10 : 0.05);
+  stab(1 * step); stab(5 * step + step * 0.5);
+  return await off.startRendering();
+}
+
+// ===================== source: mic =====================
+let mediaRecorder = null, recChunks = [], recTimer = null;
+const btnRec = document.getElementById('btnRec');
+const recLabel = document.getElementById('recLabel');
+const srcMsg = document.getElementById('srcMsg');
+
+btnRec.addEventListener('click', async () => {
+  ac();
+  if (mediaRecorder && mediaRecorder.state === 'recording') { stopRec(); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => recChunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      try {
+        const blob = new Blob(recChunks);
+        const arr = await blob.arrayBuffer();
+        const decoded = await ac().decodeAudioData(arr);
+        setBuffer(decoded, 'MIC');
+        srcMsg.textContent = '';
+      } catch (err) {
+        srcMsg.textContent = '録音データの変換に失敗しました。もう一度試すか、デモ音をご利用ください。';
+      }
+    };
+    mediaRecorder.start();
+    btnRec.classList.add('recording');
+    recLabel.textContent = '録音中… クリックで停止';
+    srcMsg.textContent = '';
+    log('REC ' + hl('start') + ' 最長4秒');
+    let remain = 4;
+    recTimer = setInterval(() => {
+      remain--;
+      if (remain <= 0) stopRec(); else recLabel.textContent = '録音中… 残り' + remain + '秒（クリックで停止）';
+    }, 1000);
+  } catch (err) {
+    srcMsg.textContent = 'マイクにアクセスできませんでした（権限またはブラウザの制限）。「デモ音を生成」をお試しください。';
+  }
+});
+function stopRec() {
+  if (recTimer) { clearInterval(recTimer); recTimer = null; }
+  if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+  btnRec.classList.remove('recording');
+  recLabel.textContent = '🎤 マイクで録音（最長4秒）';
+  log('REC ' + hl('stop'));
+}
+
+// demo
+document.getElementById('btnDemo').addEventListener('click', async () => {
+  ac();
+  const b = await makeDemoLoop();
+  setBuffer(b, 'DEMO LOOP');
+  srcMsg.textContent = '';
+});
+
+// file
+document.getElementById('btnFile').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  ac();
+  try {
+    const arr = await f.arrayBuffer();
+    let decoded = await ac().decodeAudioData(arr);
+    if (decoded.duration > 8) decoded = trimBuffer(decoded, 8);
+    setBuffer(decoded, 'FILE ' + f.name.slice(0, 20));
+    srcMsg.textContent = decoded.duration >= 8 ? '長い音声のため先頭8秒だけを読み込みました。' : '';
+  } catch (err) {
+    srcMsg.textContent = 'このファイルは読み込めませんでした（対応形式: WAV, MP3, M4A など）。';
+  }
+  e.target.value = '';
+});
+function trimBuffer(b, seconds) {
+  const len = Math.min(b.length, Math.floor(seconds * b.sampleRate));
+  const out = ctx.createBuffer(b.numberOfChannels, len, b.sampleRate);
+  for (let c = 0; c < b.numberOfChannels; c++) out.getChannelData(c).set(b.getChannelData(c).subarray(0, len));
+  return out;
+}
+
+// ===================== set buffer =====================
+function setBuffer(b, label) {
+  buffer = b;
+  // reversed copy
+  revBuffer = ctx.createBuffer(b.numberOfChannels, b.length, b.sampleRate);
+  for (let c = 0; c < b.numberOfChannels; c++) {
+    const src = b.getChannelData(c), dst = revBuffer.getChannelData(c);
+    for (let i = 0; i < b.length; i++) dst[i] = src[b.length - 1 - i];
+  }
+  document.getElementById('stDur').textContent = b.duration.toFixed(2);
+  document.getElementById('stRate').textContent = b.sampleRate.toLocaleString();
+  document.getElementById('stCount').textContent = (b.length).toLocaleString();
+  resetPerformanceState();
+  lastPad = -1;
+  renderWaveCache();
+  buildPads();
+  log('LOAD ' + hl(label) + ' ' + b.duration.toFixed(2) + 's / ' + b.length.toLocaleString() + ' samples');
+}
+
+// ===================== waveform drawing =====================
+const cvMain = document.getElementById('waveMain');
+const cvSlice = document.getElementById('waveSlice');
+const cacheMain = document.createElement('canvas');
+const cacheSlice = document.createElement('canvas');
+
+function drawWaveTo(cache, w, h, withSlices) {
+  cache.width = w; cache.height = h;
+  const g = cache.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+  if (!buffer) {
+    g.fillStyle = '#A6ABB8'; g.font = '15px sans-serif'; g.textAlign = 'center';
+    g.fillText('まだ音がありません — 録音・生成・読み込みのいずれかで音を用意してください', w / 2, h / 2);
+    return;
+  }
+  const data = buffer.getChannelData(0);
+  const mid = h / 2, spp = data.length / w;
+  g.strokeStyle = '#D8DCE4'; g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
+  g.fillStyle = '#B85348';
+  for (let x = 0; x < w; x++) {
+    let mn = 1, mx = -1;
+    const i0 = Math.floor(x * spp), i1 = Math.min(data.length, Math.floor((x + 1) * spp) + 1);
+    for (let i = i0; i < i1; i += Math.max(1, Math.floor(spp / 40))) {
+      const v = data[i]; if (v < mn) mn = v; if (v > mx) mx = v;
+    }
+    const y0 = mid - mx * (mid - 6), y1 = mid - mn * (mid - 6);
+    g.fillRect(x, Math.min(y0, y1), 1, Math.max(1, Math.abs(y1 - y0)));
+  }
+  if (withSlices) {
+    g.strokeStyle = '#0D9488'; g.setLineDash([4, 4]);
+    g.font = 'bold 11px monospace'; g.fillStyle = '#0D9488'; g.textAlign = 'left';
+    for (let s = 0; s < sliceCount; s++) {
+      const x = (s / sliceCount) * w;
+      if (s > 0) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+      g.fillText(String(s + 1), x + 4, 14);
+    }
+    g.setLineDash([]);
+  }
+}
+function renderWaveCache() {
+  drawWaveTo(cacheMain, cvMain.width, cvMain.height, false);
+  drawWaveTo(cacheSlice, cvSlice.width, cvSlice.height, true);
+}
+const cvRate = document.getElementById('waveRate');
+const cvFx = document.getElementById('waveFx');
+const cvFx2 = document.getElementById('waveFx2');
+// views: [canvas, cache, showsSlices]
+const VIEWS = [
+  [cvMain, cacheMain, false],
+  [cvSlice, cacheSlice, true],
+  [cvRate, cacheSlice, true],
+  [cvFx, cacheSlice, true],
+  [cvFx2, cacheSlice, true],
+];
+function blit() {
+  for (const [cv, cache, slices] of VIEWS) {
+    const g = cv.getContext('2d');
+    g.drawImage(cache, 0, 0, cv.width, cv.height);
+    if (slices && buffer && lastPad >= 0) {
+      const w = cv.width, x0 = (lastPad / sliceCount) * w, x1 = ((lastPad + 1) / sliceCount) * w;
+      g.fillStyle = 'rgba(184,83,72,0.12)'; g.fillRect(x0, 0, x1 - x0, cv.height);
+    }
+  }
+  // playheads
+  if (buffer && ctx) {
+    const now = ctx.currentTime;
+    activePlays = activePlays.filter(p => now < p.endAt);
+    for (const p of activePlays) {
+      let el = (now - p.start) * p.rate;                  // elapsed in buffer-seconds
+      if (p.loop) el = el % Math.max(1e-6, p.s1 - p.s0);  // wrap inside the slice
+      let pos = reversed ? p.s1 - el : p.s0 + el;         // forward-coordinate position
+      pos = Math.max(0, Math.min(buffer.duration, pos));
+      const frac = pos / buffer.duration;
+      for (const [cv] of VIEWS) {
+        const gg = cv.getContext('2d');
+        const x = frac * cv.width;
+        gg.strokeStyle = '#0D9488'; gg.lineWidth = 2;
+        gg.beginPath(); gg.moveTo(x, 0); gg.lineTo(x, cv.height); gg.stroke();
+        gg.lineWidth = 1;
+      }
+    }
+  }
+  if (typeof drawLfoCv === 'function') { drawLfoCv(); drawEnvCv(); }
+  requestAnimationFrame(blit);
+}
+renderWaveCache();
+requestAnimationFrame(blit);
+
+function bindSliceClick(cv) {
+  const idxFrom = (e) => {
+    const r = cv.getBoundingClientRect();
+    const frac = (e.clientX - r.left) / r.width;
+    return Math.min(sliceCount - 1, Math.max(0, Math.floor(frac * sliceCount)));
+  };
+  cv.addEventListener('pointerdown', (e) => {
+    if (!buffer) return;
+    const i = idxFrom(e); cv._held = i; padDown(i);
+  });
+  const up = () => { if (cv._held != null) { padUp(cv._held); cv._held = null; } };
+  cv.addEventListener('pointerup', up);
+  cv.addEventListener('pointerleave', up);
+}
+bindSliceClick(cvSlice);
+bindSliceClick(cvRate);
+bindSliceClick(cvFx);
+bindSliceClick(cvFx2);
+
+// ===================== pads =====================
+const KEYS = ['a','s','d','f','g','h','j','k','q','w','e','r','t','y','u','i'];
+const padgrid = document.getElementById('padgrid');
+function buildPads() {
+  padgrid.innerHTML = '';
+  const n = Math.min(16, sliceCount);
+  for (let i = 0; i < 16; i++) {
+    const pad = document.createElement('button');
+    pad.type = 'button';
+    if (i < n) {
+      pad.className = 'pad';
+      pad.innerHTML = '<span class="pn">' + (i + 1) + '</span><span class="pk">' + KEYS[i].toUpperCase() + '</span>';
+      pad.setAttribute('aria-label', 'スライス' + (i + 1) + 'を再生');
+      pad.addEventListener('pointerdown', (e) => { e.preventDefault(); padDown(i); });
+      pad.addEventListener('pointerup', () => padUp(i));
+      pad.addEventListener('pointerleave', () => padUp(i));
+      pad.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (!e.repeat) padDown(i); } });
+      pad.addEventListener('keyup', (e) => { if (e.key === 'Enter' || e.key === ' ') padUp(i); });
+    } else {
+      pad.className = 'pad empty'; pad.tabIndex = -1; pad.disabled = true;
+      pad.innerHTML = '<span class="pn">·</span>';
+    }
+    pad.dataset.i = i;
+    padgrid.appendChild(pad);
+  }
+}
+buildPads();
+
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const i = KEYS.indexOf(e.key.toLowerCase());
+  if (i >= 0 && i < sliceCount) padDown(i);
+});
+document.addEventListener('keyup', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const i = KEYS.indexOf(e.key.toLowerCase());
+  if (i >= 0 && i < sliceCount) padUp(i);
+});
+
+function padDown(i, vel) { if (envMode) noteOn(i, vel); else playSlice(i, vel); }
+function padUp(i) { if (envMode) noteOff(i); }
+
+document.querySelectorAll('.cnt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.cnt').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    btn.setAttribute('aria-pressed', 'true');
+    sliceCount = parseInt(btn.dataset.n, 10);
+    resetPerformanceState();
+    lastPad = -1;
+    renderWaveCache();
+    buildPads();
+    log('SLICE count = ' + hl(String(sliceCount)));
+  });
+});
+
+// ===================== playback =====================
+function currentRate() { return Math.pow(2, semitones / 12); }
+
+function playSlice(i, vel = 1) {
+  if (!buffer) { log('PLAY 失敗 — まず①で音を用意してください'); flashPad(i); return; }
+  const c = ac();
+  const dur = buffer.duration;
+  const s0 = (i / sliceCount) * dur;
+  const s1 = ((i + 1) / sliceCount) * dur;
+  const rate = currentRate();
+
+  const src = c.createBufferSource();
+  src.playbackRate.value = rate;
+  let offset, len;
+  if (!reversed) { src.buffer = buffer; offset = s0; len = s1 - s0; }
+  else { src.buffer = revBuffer; offset = dur - s1; len = s1 - s0; }
+
+  const env = c.createGain();
+  const t = c.currentTime;
+  const outDur = len / rate;
+  const fade = Math.min(0.004, outDur / 4);
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(vel, t + fade);
+  env.gain.setValueAtTime(vel, t + outDur - fade);
+  env.gain.linearRampToValueAtTime(0, t + outDur);
+
+  try { lfoPitchTap.connect(src.playbackRate); } catch (e) {}
+  src.connect(env); env.connect(filterIn);
+  src.start(t, offset, len);
+
+  activePlays.push({ start: t, endAt: t + outDur, s0, s1, rate });
+  lastPad = i;
+  flashPad(i);
+  const st = (semitones >= 0 ? '+' : '') + semitones;
+  log('PLAY ' + hl('#' + (i + 1)) + ' [' + s0.toFixed(2) + '–' + s1.toFixed(2) + 's] rate=' + rate.toFixed(2) + ' (' + st + 'st)' + (reversed ? ' ' + hl('REV') : ''));
+}
+
+function flashPad(i) {
+  const pad = padgrid.querySelector('[data-i="' + i + '"]');
+  if (!pad || pad.classList.contains('empty')) return;
+  pad.classList.add('lit');
+  setTimeout(() => pad.classList.remove('lit'), 130);
+}
+
+// ===================== rate controls =====================
+const rateSlider = document.getElementById('rateSlider');
+const rateVal = document.getElementById('rateVal');
+function updRateLabel() {
+  const r = currentRate();
+  const st = (semitones >= 0 ? '+' : '') + semitones.toFixed(1).replace('.0', '.0');
+  rateVal.textContent = r.toFixed(2) + 'x / ' + (semitones >= 0 ? '+' : '') + semitones + ' 半音';
+}
+rateSlider.addEventListener('input', () => {
+  semitones = parseInt(rateSlider.value, 10);
+  updRateLabel();
+  if (looping) startLoop();
+  log('RATE ' + hl(currentRate().toFixed(2) + 'x') + ' (' + (semitones >= 0 ? '+' : '') + semitones + ' 半音)');
+});
+document.getElementById('btnRateReset').addEventListener('click', () => {
+  semitones = 0; rateSlider.value = 0; updRateLabel();
+  if (reversed) toggleRev();
+  log('RATE reset');
+});
+const btnRev = document.getElementById('btnRev');
+function toggleRev() {
+  reversed = !reversed;
+  btnRev.setAttribute('aria-pressed', String(reversed));
+  if (looping) startLoop();
+  log('REVERSE ' + hl(reversed ? 'ON' : 'OFF'));
+}
+btnRev.addEventListener('click', toggleRev);
+updRateLabel();
+
+// ===================== fx controls =====================
+function bindToggle(btnId, chipId, key, apply) {
+  const btn = document.getElementById(btnId), chip = document.getElementById(chipId);
+  btn.addEventListener('click', () => {
+    ac();
+    fx[key] = !fx[key];
+    btn.setAttribute('aria-pressed', String(fx[key]));
+    btn.textContent = fx[key] ? 'ON' : 'OFF';
+    chip.classList.toggle('on', fx[key]);
+    apply(fx[key]);
+    log('FX ' + key.toUpperCase() + ' ' + hl(fx[key] ? 'ON' : 'OFF'));
+  });
+}
+bindToggle('tgFilter', 'chFilter', 'filter', (on) => setFilterEnabled(on));
+bindToggle('tgDelay', 'chDelay', 'delay', (on) => { delayIn.gain.value = on ? 1 : 0; });
+bindToggle('tgRev', 'chRev', 'rev', (on) => { revIn.gain.value = on ? (parseInt(rvSlider.value, 10) / 100) : 0; });
+bindToggle('tgChorus', 'chChorus', 'chorus', (on) => { chorusIn.gain.value = on ? 1 : 0; });
+
+const cutSlider = document.getElementById('cutSlider');
+cutSlider.addEventListener('input', () => {
+  const v = parseInt(cutSlider.value, 10);
+  document.getElementById('cutVal').textContent = v.toLocaleString() + ' Hz';
+  if (ctx) filterNode.frequency.value = v;
+});
+const dtSlider = document.getElementById('dtSlider');
+dtSlider.addEventListener('input', () => {
+  const v = parseFloat(dtSlider.value);
+  document.getElementById('dtVal').textContent = v.toFixed(2) + ' 秒';
+  if (ctx) delayNode.delayTime.value = v;
+});
+const fbSlider = document.getElementById('fbSlider');
+fbSlider.addEventListener('input', () => {
+  const v = parseInt(fbSlider.value, 10);
+  document.getElementById('fbVal').textContent = v + ' %';
+  if (ctx) fbGain.gain.value = v / 100;
+});
+const rvSlider = document.getElementById('rvSlider');
+rvSlider.addEventListener('input', () => {
+  const v = parseInt(rvSlider.value, 10);
+  document.getElementById('rvVal').textContent = v + ' %';
+  if (ctx && fx.rev) revIn.gain.value = v / 100;
+});
+const cdSlider = document.getElementById('cdSlider');
+cdSlider.addEventListener('input', () => {
+  const v = parseFloat(cdSlider.value);
+  document.getElementById('cdVal').textContent = v.toFixed(1) + ' ms';
+  if (ctx) chDepth.gain.value = v / 1000;
+});
+const ampSlider = document.getElementById('ampSlider');
+ampSlider.addEventListener('input', () => {
+  const v = parseInt(ampSlider.value, 10);
+  document.getElementById('ampVal').textContent = v + ' %';
+  if (ctx) ampNode.gain.value = v / 100;
+  log('AMP gain = ' + hl(v + '%'));
+});
+
+// ===================== LFO (section 6) =====================
+let lfoOn = false, lfoDest = 'pitch', lfoDepth = 60, lfoRateHz = 5;
+const LFO_CAP = {
+  pitch: 'LFO波形 → ピッチを揺らしている（ビブラート）',
+  amp: 'LFO波形 → 音量を揺らしている（トレモロ）',
+  filter: 'LFO波形 → フィルターのカットオフを揺らしている（ワウ）'
+};
+function applyLfo() {
+  if (!ctx) return;
+  lfoOsc.frequency.value = lfoRateHz;
+  const d = lfoOn ? lfoDepth / 100 : 0;
+  lfoPitchTap.gain.value = (lfoDest === 'pitch') ? d * 0.12 : 0;   // ±12% ≈ ±2半音
+  lfoAmpTap.gain.value = (lfoDest === 'amp') ? d * 0.8 : 0;
+  lfoFilterTap.gain.value = (lfoDest === 'filter') ? d * 2500 : 0; // ±Hz
+  if (lfoOn && lfoDest === 'filter' && !fx.filter) document.getElementById('tgFilter').click();
+}
+const btnLfoTgl = document.getElementById('btnLfoTgl');
+btnLfoTgl.addEventListener('click', () => {
+  ac();
+  lfoOn = !lfoOn;
+  btnLfoTgl.setAttribute('aria-pressed', String(lfoOn));
+  btnLfoTgl.textContent = lfoOn ? 'LFO ON' : 'LFO OFF';
+  applyLfo();
+  log('LFO ' + hl(lfoOn ? 'ON' : 'OFF') + ' → ' + lfoDest + ' / ' + lfoRateHz.toFixed(1) + 'Hz');
+});
+document.querySelectorAll('#destRow .dest').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#destRow .dest').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    btn.setAttribute('aria-pressed', 'true');
+    lfoDest = btn.dataset.dest;
+    document.getElementById('lfoCap').textContent = LFO_CAP[lfoDest];
+    if (ctx) applyLfo();
+    log('LFO dest = ' + hl(lfoDest));
+  });
+});
+document.getElementById('lfoDepthSlider').addEventListener('input', (e) => {
+  lfoDepth = parseInt(e.target.value, 10);
+  document.getElementById('lfoDepthVal').textContent = lfoDepth;
+  if (ctx) applyLfo();
+});
+document.getElementById('lfoRateSlider').addEventListener('input', (e) => {
+  lfoRateHz = parseFloat(e.target.value);
+  document.getElementById('lfoRateVal').textContent = lfoRateHz.toFixed(1) + ' Hz';
+  if (ctx) applyLfo();
+});
+
+// ---- slice loop (listening aid for LFO / envelope) ----
+let looping = false, loopSrc = null, loopPlay = null;
+const btnLoop = document.getElementById('btnLoop');
+function sliceRegion(i) {
+  const dur = buffer.duration;
+  const s0 = (i / sliceCount) * dur, s1 = ((i + 1) / sliceCount) * dur;
+  return { dur, s0, s1 };
+}
+function makeLoopSource(c, i, rate) {
+  const { dur, s0, s1 } = sliceRegion(i);
+  const src = c.createBufferSource();
+  src.playbackRate.value = rate; src.loop = true;
+  let offset;
+  if (!reversed) { src.buffer = buffer; src.loopStart = s0; src.loopEnd = s1; offset = s0; }
+  else { src.buffer = revBuffer; src.loopStart = dur - s1; src.loopEnd = dur - s0; offset = dur - s1; }
+  try { lfoPitchTap.connect(src.playbackRate); } catch (e) {}
+  return { src, offset, s0, s1 };
+}
+function startLoop() {
+  if (!buffer) { log('LOOP 失敗 — まず①で音を用意してください'); return false; }
+  stopLoopNodes();
+  const c = ac();
+  const i = lastPad >= 0 ? lastPad : 0;
+  const rate = currentRate();
+  const { src, offset, s0, s1 } = makeLoopSource(c, i, rate);
+  const g = c.createGain();
+  const t = c.currentTime;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.9, t + 0.01);
+  src.connect(g); g.connect(filterIn); src.start(t, offset);
+  loopSrc = { src, g };
+  loopPlay = { start: t, endAt: Infinity, s0, s1, rate, loop: true };
+  activePlays.push(loopPlay);
+  log('LOOP ' + hl('#' + (i + 1)) + ' [' + s0.toFixed(2) + '–' + s1.toFixed(2) + 's]');
+  return true;
+}
+function stopLoopNodes() {
+  if (loopSrc) { try { loopSrc.src.stop(); } catch (e) {} loopSrc = null; }
+  if (loopPlay) { loopPlay.endAt = 0; loopPlay = null; }
+}
+function syncLoopBtn() {
+  btnLoop.setAttribute('aria-pressed', String(looping));
+  btnLoop.textContent = looping ? '🔁 ループ停止' : '🔁 スライスをループ再生';
+}
+btnLoop.addEventListener('click', () => {
+  looping = !looping;
+  if (looping) { if (!startLoop()) looping = false; }
+  else { stopLoopNodes(); log('LOOP ' + hl('stop')); }
+  syncLoopBtn();
+});
+
+// ===================== Envelope (section 7) =====================
+let envMode = false, envA = 250, envD = 300, envS = 0.6, envR = 600;
+let envViz = null; // 再生位置マーカー { t0, relAt }
+const voices = new Map(); // pad index -> { src, env, play }
+function noteOn(i, vel = 1) {
+  if (!buffer) { log('NOTE 失敗 — まず①で音を用意してください'); flashPad(i); return; }
+  if (voices.has(i)) noteOff(i, true);
+  const c = ac();
+  const rate = currentRate();
+  const { src, offset, s0, s1 } = makeLoopSource(c, i, rate);
+  const env = c.createGain();
+  const t = c.currentTime;
+  const A = Math.max(0.002, envA / 1000), D = Math.max(0.002, envD / 1000);
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.linearRampToValueAtTime(vel, t + A);
+  env.gain.linearRampToValueAtTime(Math.max(0.0001, envS * vel), t + A + D);
+  src.connect(env); env.connect(filterIn); src.start(t, offset);
+  const play = { start: t, endAt: Infinity, s0, s1, rate, loop: true };
+  activePlays.push(play);
+  voices.set(i, { src, env, play });
+  envViz = { t0: t, relAt: null };
+  lastPad = i;
+  const pd = padgrid.querySelector('[data-i="' + i + '"]');
+  if (pd) pd.classList.add('lit');
+  log('NOTE ON ' + hl('#' + (i + 1)) + ' A=' + envA + 'ms D=' + envD + 'ms S=' + Math.round(envS * 100) + '%');
+}
+function noteOff(i, silent) {
+  const v = voices.get(i); if (!v) return;
+  voices.delete(i);
+  const t = ctx.currentTime, R = Math.max(0.005, envR / 1000);
+  const g = v.env.gain;
+  if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t);
+  else { const cur = g.value; g.cancelScheduledValues(t); g.setValueAtTime(cur, t); }
+  g.linearRampToValueAtTime(0.0001, t + R);
+  try { v.src.stop(t + R + 0.05); } catch (e) {}
+  v.play.endAt = t + R;
+  if (envViz && envViz.relAt === null) envViz.relAt = t;
+  const pd = padgrid.querySelector('[data-i="' + i + '"]');
+  if (pd) pd.classList.remove('lit');
+  if (!silent) log('NOTE OFF ' + hl('#' + (i + 1)) + ' R=' + envR + 'ms');
+}
+function allNotesOff() { for (const i of [...voices.keys()]) noteOff(i, true); }
+function resetPerformanceState() {
+  allNotesOff();
+  if (looping) { stopLoopNodes(); looping = false; syncLoopBtn(); }
+}
+const btnEnvMode = document.getElementById('btnEnvMode');
+btnEnvMode.addEventListener('click', () => {
+  envMode = !envMode;
+  btnEnvMode.setAttribute('aria-pressed', String(envMode));
+  btnEnvMode.textContent = envMode ? 'エンベロープモード ON' : 'エンベロープモード OFF';
+  if (!envMode) allNotesOff();
+  log('ENV mode ' + hl(envMode ? 'ON' : 'OFF'));
+});
+function bindEnvSlider(id, valId, setter, unit) {
+  document.getElementById(id).addEventListener('input', (e) => {
+    const v = parseInt(e.target.value, 10);
+    setter(v);
+    document.getElementById(valId).textContent = v + ' ' + unit;
+    if (!envMode) btnEnvMode.click(); // スライダーに触れたら自動でモードON
+  });
+}
+bindEnvSlider('envASlider', 'envAVal', v => envA = v, 'ms');
+bindEnvSlider('envDSlider', 'envDVal', v => envD = v, 'ms');
+bindEnvSlider('envSSlider', 'envSVal', v => envS = v / 100, '%');
+bindEnvSlider('envRSlider', 'envRVal', v => envR = v, 'ms');
+
+// ---- canvases for sections 6/7 ----
+const lfoCv = document.getElementById('lfoCv');
+const envCv = document.getElementById('envCv');
+function drawLfoCv() {
+  const g = lfoCv.getContext('2d'), W = lfoCv.width, H = lfoCv.height, mid = H / 2;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#D8DCE4'; g.beginPath(); g.moveTo(0, mid); g.lineTo(W, mid); g.stroke();
+  const amp = (lfoDepth / 100) * (mid - 12);
+  const phase = ((ctx ? ctx.currentTime : performance.now() / 1000) * lfoRateHz) * Math.PI * 2;
+  g.strokeStyle = lfoOn ? '#7C3AED' : '#C9BFEA'; g.lineWidth = 2.5;
+  g.beginPath();
+  for (let x = 0; x <= W; x += 2) {
+    const y = mid - amp * Math.sin(phase + (x / W) * Math.PI * 4);
+    if (x === 0) g.moveTo(x, y); else g.lineTo(x, y);
+  }
+  g.stroke(); g.lineWidth = 1;
+  if (!lfoOn) { g.fillStyle = '#A6ABB8'; g.font = 'bold 13px sans-serif'; g.textAlign = 'center'; g.fillText('LFO OFF（左のボタンでON）', W / 2, 20); }
+}
+function drawEnvCv() {
+  const g = envCv.getContext('2d'), W = envCv.width, H = envCv.height;
+  const mL = 14, mR = 14, mT = 18, mB = 24, y0 = H - mB, y1 = mT;
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+  const SW = 500; // sustain display width in "ms"
+  const total = envA + envD + SW + envR;
+  const px = (ms) => mL + (ms / total) * (W - mL - mR);
+  const yOf = (lv) => y0 - lv * (y0 - y1);
+  const xA = px(envA), xD = px(envA + envD), xS = px(envA + envD + SW), xR = px(total);
+  g.strokeStyle = '#D8DCE4';
+  [xA, xD, xS].forEach(x => { g.setLineDash([3, 4]); g.beginPath(); g.moveTo(x, y1); g.lineTo(x, y0); g.stroke(); g.setLineDash([]); });
+  g.strokeStyle = '#7C3AED'; g.lineWidth = 2.5;
+  g.beginPath();
+  g.moveTo(mL, y0);
+  g.lineTo(xA, yOf(1));
+  g.lineTo(xD, yOf(envS));
+  g.lineTo(xS, yOf(envS));
+  g.lineTo(xR, y0);
+  g.stroke(); g.lineWidth = 1;
+  g.fillStyle = '#7C3AED'; g.font = 'bold 12px monospace'; g.textAlign = 'center';
+  g.fillText('A', (mL + xA) / 2, H - 8);
+  g.fillText('D', (xA + xD) / 2, H - 8);
+  g.fillText('S', (xD + xS) / 2, H - 8);
+  g.fillText('R', (xS + xR) / 2, H - 8);
+  g.fillStyle = '#5C6270'; g.font = '10px sans-serif'; g.textAlign = 'left';
+  g.fillText('押す', mL, 12); g.textAlign = 'right'; g.fillText('離す→', xS, 12);
+  // live position marker
+  if (envViz && ctx) {
+    const now = ctx.currentTime;
+    let x = null, lv = 0;
+    if (envViz.relAt === null) {
+      const e = (now - envViz.t0) * 1000;
+      if (e <= envA) { x = px(e); lv = e / envA; }
+      else if (e <= envA + envD) { x = px(e); lv = 1 - (1 - envS) * ((e - envA) / envD); }
+      else { x = (xD + xS) / 2; lv = envS; }
+    } else {
+      const er = (now - envViz.relAt) * 1000;
+      if (er > envR + 400) { envViz = null; }
+      else { x = xS + Math.min(1, er / envR) * (xR - xS); lv = Math.max(0, envS * (1 - er / envR)); }
+    }
+    if (x !== null) {
+      g.fillStyle = '#B85348';
+      g.beginPath(); g.arc(x, yOf(lv), 5, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = 'rgba(184,83,72,0.35)';
+      g.beginPath(); g.moveTo(x, y1); g.lineTo(x, y0); g.stroke();
+    }
+  }
+}
+
+// ===================== Web MIDI input =====================
+const btnMidi = document.getElementById('btnMidi');
+const midiStatus = document.getElementById('midiStatus');
+let midiAccess = null;
+function midiNoteToPad(note) { return ((note - 36) % 16 + 16) % 16; }
+function onMIDIMessage(e) {
+  const [st, d1, d2] = e.data;
+  const cmd = st & 0xF0;
+  if (cmd === 0x90 && d2 > 0) {
+    const i = midiNoteToPad(d1);
+    if (i < sliceCount) {
+      padDown(i, Math.max(0.05, d2 / 127));
+      log('MIDI IN ' + hl('note=' + d1 + ' vel=' + d2) + ' → PAD ' + (i + 1));
+    }
+  } else if (cmd === 0x80 || (cmd === 0x90 && d2 === 0)) {
+    padUp(midiNoteToPad(d1));
+  } else if (cmd === 0xB0 && d1 === 1) { // CC1 mod wheel -> LFO depth (see section 8 note)
+    lfoDepth = Math.round(d2 / 127 * 100);
+    document.getElementById('lfoDepthSlider').value = lfoDepth;
+    document.getElementById('lfoDepthVal').textContent = lfoDepth;
+    if (ctx) applyLfo();
+    log('MIDI ' + hl('CC1=' + d2) + ' → LFO深さ ' + lfoDepth);
+  }
+}
+function bindMidiInputs() {
+  let n = 0;
+  midiAccess.inputs.forEach(inp => { inp.onmidimessage = onMIDIMessage; n++; });
+  midiStatus.textContent = n > 0 ? '接続中: ' + n + ' 入力' : '入力デバイスが見つかりません（接続すると自動認識）';
+}
+btnMidi.addEventListener('click', async () => {
+  ac();
+  if (!navigator.requestMIDIAccess) {
+    midiStatus.textContent = 'このブラウザはWeb MIDI非対応です（Chrome / Edge をお試しください）';
+    return;
+  }
+  try {
+    midiAccess = await navigator.requestMIDIAccess();
+    bindMidiInputs();
+    midiAccess.onstatechange = bindMidiInputs;
+    btnMidi.textContent = '🎹 MIDI接続済み';
+    log('MIDI ' + hl('access OK'));
+  } catch (err) {
+    midiStatus.textContent = 'MIDIアクセスが拒否されました';
+  }
+});
+
+// ===================== master output recorder (WAV export) =====================
+const btnMRec = document.getElementById('btnMRec');
+const btnMUse = document.getElementById('btnMUse');
+const mDl = document.getElementById('mDl');
+let mrec = null; // { sp, mute, chunks }
+let recordedFloat = null, recordedRate = 44100, mrecTimer = null;
+function encodeWav(f32, rate) {
+  const n = f32.length, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+  const wstr = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+  wstr(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); wstr(8, 'WAVE');
+  wstr(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  wstr(36, 'data'); v.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) {
+    const x = Math.max(-1, Math.min(1, f32[i]));
+    v.setInt16(44 + i * 2, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+function startMasterRec() {
+  const c = ac();
+  const sp = c.createScriptProcessor(4096, 1, 1);
+  const mute = c.createGain(); mute.gain.value = 0;
+  const chunks = [];
+  sp.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  master.connect(sp); sp.connect(mute); mute.connect(c.destination);
+  mrec = { sp, mute, chunks };
+  recordedRate = c.sampleRate;
+  btnMRec.textContent = '⏹ 録音停止';
+  btnMRec.classList.add('recording2');
+  mDl.style.display = 'none';
+  log('EXPORT ' + hl('rec start') + ' （最長30秒）');
+  mrecTimer = setTimeout(stopMasterRec, 30000);
+}
+function stopMasterRec() {
+  if (!mrec) return;
+  clearTimeout(mrecTimer);
+  try { master.disconnect(mrec.sp); } catch (e) {}
+  try { mrec.sp.disconnect(); mrec.mute.disconnect(); } catch (e) {}
+  const total = mrec.chunks.reduce((a, b) => a + b.length, 0);
+  const f32 = new Float32Array(total);
+  let o = 0; for (const ch of mrec.chunks) { f32.set(ch, o); o += ch.length; }
+  mrec = null;
+  btnMRec.textContent = '⏺ 出力を録音';
+  btnMRec.classList.remove('recording2');
+  if (total < recordedRate * 0.1) { log('EXPORT ' + hl('empty') + ' — 録音が短すぎます'); return; }
+  recordedFloat = f32;
+  const blob = encodeWav(f32, recordedRate);
+  if (mDl.href) URL.revokeObjectURL(mDl.href);
+  mDl.href = URL.createObjectURL(blob);
+  mDl.style.display = 'inline-block';
+  btnMUse.disabled = false;
+  log('EXPORT ' + hl((total / recordedRate).toFixed(1) + 's') + ' WAV準備完了 (' + Math.round(blob.size / 1024) + 'KB)');
+}
+btnMRec.addEventListener('click', () => { if (mrec) stopMasterRec(); else startMasterRec(); });
+btnMUse.addEventListener('click', () => {
+  if (!recordedFloat) return;
+  const c = ac();
+  // trim to 8s max, drop leading silence
+  let start = 0;
+  while (start < recordedFloat.length && Math.abs(recordedFloat[start]) < 0.004) start++;
+  start = Math.max(0, start - Math.floor(recordedRate * 0.05));
+  const len = Math.min(recordedFloat.length - start, Math.floor(recordedRate * 8));
+  const b = c.createBuffer(1, Math.max(1, len), recordedRate);
+  b.getChannelData(0).set(recordedFloat.subarray(start, start + len));
+  setBuffer(b, 'RESAMPLE');
+  document.getElementById('source').scrollIntoView({ behavior: 'smooth' });
+});
+
+// ===================== chain map (section 5) =====================
+const chainWrap = document.getElementById('chainWrap');
+const termBtns = document.querySelectorAll('.term');
+const TERM_NAMES = { gen: 'ジェネレーター', mod: 'モディファイア', mdl: 'モジュレーター', fx: 'エフェクト' };
+termBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const g = btn.dataset.g;
+    const wasOn = btn.getAttribute('aria-pressed') === 'true';
+    termBtns.forEach(b => b.setAttribute('aria-pressed', 'false'));
+    chainWrap.classList.remove('fsel', 'f-gen', 'f-mod', 'f-mdl', 'f-fx');
+    if (!wasOn) {
+      btn.setAttribute('aria-pressed', 'true');
+      chainWrap.classList.add('fsel', 'f-' + g);
+      log('CHAIN ' + hl(TERM_NAMES[g]) + ' をハイライト');
+    }
+  });
+});
+</script>
+</body>
+</html>

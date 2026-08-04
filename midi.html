@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MIDIを触って理解する — メッセージ・CC・ADSR</title>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --ink: #1F2430;
+    --muted: #5C6270;
+    --card: #F2F4F8;
+    --border: #D8DCE4;
+    --teal: #0D9488;
+    --teal-soft: #CCFBF1;
+    --orange: #D97706;
+    --mono: "SFMono-Regular", "Consolas", "Menlo", monospace;
+    --jp: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+    --c-msb: #2DD4BF; --c-lsb: #A9CCC8; --c-sw: #F59E0B; --c-sound: #A78BFA;
+    --c-fx: #F472B6; --c-rpn: #FACC15; --c-gp: #60A5FA; --c-mode: #F87171; --c-undef: #EDEFF4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+  body { font-family: var(--jp); color: var(--ink); background: var(--bg); line-height: 1.7; padding-bottom: 130px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero { padding: 72px 24px 48px; max-width: 1080px; margin: 0 auto; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--teal); text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: 0.01em; line-height: 1.3; }
+  h1 .accent { color: var(--teal); }
+  .lede { margin-top: 16px; font-size: 16px; color: var(--muted); max-width: 46em; }
+  .lede strong { color: var(--ink); }
+
+  section { padding: 48px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  .sub { color: var(--teal); font-size: 14px; font-style: italic; margin-bottom: 24px; }
+  h3 { font-size: 15px; font-weight: 700; margin: 20px 0 8px; }
+  p.note { font-size: 13px; color: var(--muted); }
+  .kbd-hint { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--muted); background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px; }
+  .kbd-hint b { font-family: var(--mono); color: var(--teal); letter-spacing: .12em; }
+
+  .bytes-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0 10px; }
+  .byte { flex: 1 1 200px; border: 2px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--card); }
+  .byte.status { border-color: var(--teal); background: var(--teal-soft); }
+  .byte .hex { font-family: var(--mono); font-size: 26px; font-weight: 700; }
+  .byte .hex .n { color: var(--orange); }
+  .byte .label { font-size: 13px; font-weight: 700; margin-top: 4px; }
+  .byte .desc { font-size: 12px; color: var(--muted); }
+
+  .demo { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-top: 16px; }
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 760px) { .demo-grid { grid-template-columns: 1fr; } }
+  .ctl { margin-bottom: 16px; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .ctl label .val { font-family: var(--mono); color: var(--teal); }
+  input[type="range"] { width: 100%; accent-color: var(--teal); height: 28px; }
+  button { font-family: var(--jp); font-size: 14px; font-weight: 700; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--teal); background: var(--teal); color: #fff; cursor: pointer; }
+  button:focus-visible, input:focus-visible, .cell:focus-visible, .dest:focus-visible, .wave-btn:focus-visible, .key:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  button:active { transform: translateY(1px); }
+  button[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); }
+  canvas { width: 100%; height: auto; border-radius: 12px; background: #fff; border: 1px solid var(--border); display: block; }
+
+  /* destination selector */
+  .dest-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .dest { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 10px 8px; text-align: center; cursor: pointer; font-family: var(--jp); }
+  .dest .to { font-size: 11px; color: var(--muted); display: block; }
+  .dest .fx { font-size: 14px; font-weight: 800; color: var(--ink); }
+  .dest[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-soft); }
+  .dest[aria-pressed="true"] .fx { color: var(--teal); }
+
+  /* waveform buttons */
+  .wave-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .wave-btn { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 8px 4px 6px; cursor: pointer; text-align: center; }
+  .wave-btn svg { display: block; margin: 0 auto 4px; }
+  .wave-btn .wname { font-size: 11px; font-weight: 700; color: var(--muted); }
+  .wave-btn[aria-pressed="true"] { border-color: var(--teal); background: var(--teal-soft); }
+  .wave-btn[aria-pressed="true"] .wname { color: var(--teal); }
+  .wave-btn[aria-pressed="true"] svg path { stroke: var(--teal); }
+
+  /* keyboard */
+  .kbd { display: flex; gap: 6px; margin-top: 10px; }
+  .key { flex: 1; height: 92px; border-radius: 0 0 10px 10px; border: 1px solid var(--border); background: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 8px; user-select: none; }
+  .key .kc { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--teal); }
+  .key .kn { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .key.down { background: var(--teal-soft); border-color: var(--teal); }
+
+  /* CC map */
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 20px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; cursor: pointer; color: var(--ink); }
+  .chip .dot { width: 12px; height: 12px; border-radius: 4px; border: 1px solid rgba(0,0,0,.12); }
+  .chip[aria-pressed="true"] { border-color: var(--ink); background: var(--card); }
+  .ccgrid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; }
+  @media (max-width: 900px) { .ccgrid { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 560px) { .ccgrid { grid-template-columns: repeat(2, 1fr); } }
+  .cell { border-radius: 8px; padding: 7px 8px 6px; border: 1px solid rgba(0,0,0,.10); cursor: pointer; min-height: 54px; transition: transform .08s ease, opacity .15s ease; }
+  .cell:hover { transform: translateY(-2px); }
+  .cell.dim { opacity: 0.18; }
+  .cell .num { font-family: var(--mono); font-size: 14px; font-weight: 700; line-height: 1.2; }
+  .cell .name { font-size: 10.5px; line-height: 1.35; display: block; }
+  .cell.undef { color: #A6ABB8; }
+
+  /* CC popup */
+  #ccPop { position: fixed; z-index: 60; width: min(340px, calc(100vw - 24px)); background: #fff; border: 2px solid var(--teal); border-radius: 14px; padding: 16px 18px 14px; box-shadow: 0 12px 32px rgba(16,22,35,.18); display: none; }
+  #ccPop.show { display: block; }
+  #ccPop .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-right: 28px; }
+  #ccPop .cc-num { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--teal); }
+  #ccPop .cc-name { font-size: 15px; font-weight: 800; }
+  #ccPop .cc-cat { font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px; margin-top: 6px; display: inline-block; }
+  #ccPop .cc-desc { margin-top: 8px; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+  #ccPop .cc-hex { margin-top: 8px; font-family: var(--mono); font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+  #ccPop .close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; border-radius: 8px; border: none; background: var(--card); color: var(--muted); font-size: 15px; line-height: 1; }
+  #ccPop::after { content: ""; position: absolute; width: 14px; height: 14px; background: #fff; border-left: 2px solid var(--teal); border-top: 2px solid var(--teal); transform: rotate(45deg); left: var(--arrow-x, 40px); top: -9px; }
+  #ccPop.below::after { top: auto; bottom: -9px; transform: rotate(225deg); }
+
+  /* history */
+  .timeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 8px; }
+  @media (max-width: 860px) { .timeline { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 520px) { .timeline { grid-template-columns: 1fr; } }
+  .era { border-radius: 14px; border: 1.5px solid var(--border); background: var(--card); padding: 18px; border-top-width: 5px; }
+  .era .year { font-family: var(--mono); font-weight: 700; font-size: 14px; }
+  .era h3 { margin: 6px 0 6px; }
+  .era p { font-size: 13px; color: var(--muted); }
+  .takeaway { margin-top: 24px; border-radius: 12px; background: var(--card); padding: 16px 20px; font-size: 14px; }
+  .takeaway strong { color: var(--orange); }
+
+  #monitor { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; background: #101623; color: #D7E4E2; font-family: var(--mono); font-size: 12.5px; padding: 10px 20px; border-top: 3px solid var(--teal); max-height: 104px; overflow: hidden; }
+  #monitor .mtitle { font-size: 10px; letter-spacing: .15em; color: var(--teal); text-transform: uppercase; margin-bottom: 4px; }
+  #monitor .line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #monitor .hexpart { color: #5EEAD4; font-weight: 700; }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:70;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid #D8DCE4;padding:9px 24px;font-family:sans-serif;font-size:13.5px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+  <a href="./index.html" style="font-weight:700;color:#1F2430;text-decoration:none;margin-right:8px;">🎛 デジタル音源ラボ</a>
+  <a href="./midi.html" style="color:#D97706;text-decoration:none;font-weight:800;border-bottom:2.5px solid #D97706;">01 MIDI</a>
+  <a href="./synth.html" style="color:#0D9488;text-decoration:none;font-weight:400;opacity:.75;">02 シンセ</a>
+  <a href="./sampler.html" style="color:#B85348;text-decoration:none;font-weight:400;opacity:.75;">03 サンプラー</a>
+</nav>
+
+
+<header class="hero">
+  <div class="eyebrow">Interactive Lecture Notes</div>
+  <h1>MIDIを<span class="accent">触って</span>理解する</h1>
+  <p class="lede">MIDIは「音」ではなく<strong>数バイトの命令</strong>を送るプロトコルです。スライダーや鍵盤を操作すると、画面下の<strong>バイトモニター</strong>に実際に送られるMIDIバイト列が表示され、同時にブラウザのシンセが鳴ります。キーボードの <b style="font-family:var(--mono); color:var(--teal);">A S D F G H J K</b> でいつでも演奏できます。</p>
+</header>
+
+<main>
+
+<!-- ============ 1. message anatomy ============ -->
+<section id="anatomy">
+  <h2>メッセージの正体は数バイトの列</h2>
+  <p class="sub">例：Note On（ドを強さ100で鳴らす）はたった3バイト</p>
+  <div class="bytes-row">
+    <div class="byte status">
+      <div class="hex">0x9<span class="n">0</span></div>
+      <div class="label">ステータスバイト</div>
+      <div class="desc">上位4bit＝種別（9=Note On）／下位4bit＝チャンネル（0〜15）</div>
+    </div>
+    <div class="byte">
+      <div class="hex">0x3C</div>
+      <div class="label">データバイト1：ノート番号 60</div>
+      <div class="desc">中央のド（C4）。0〜127</div>
+    </div>
+    <div class="byte">
+      <div class="hex">0x64</div>
+      <div class="label">データバイト2：ベロシティ 100</div>
+      <div class="desc">打鍵の強さ。0〜127</div>
+    </div>
+  </div>
+  <p class="note">データバイトは必ず0〜127（最上位bit＝0）。128以上は「新しいステータス」と解釈されるため。CCが128個・値が128段階なのはこの制約そのもの。プログラムチェンジ（0xCn）はデータ1バイト、MIDIクロック（0xF8）はステータス1バイトのみと、コマンドごとに長さが違う。</p>
+</section>
+
+<!-- ============ 2. modulation ============ -->
+<section id="mod">
+  <h2>モジュレーション（CC#1）</h2>
+  <p class="sub">正体は「LFO（周期的な揺れ）をどれだけ深く掛けるか」の制御 ―― 掛け先を切り替えて聴き比べよう</p>
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <h3 style="margin-top:0;">LFOの掛け先（音源側の設定）</h3>
+        <div class="dest-row" id="destRow">
+          <button class="dest" data-dest="pitch" aria-pressed="true"><span class="to">音程に掛ける</span><span class="fx">ビブラート</span></button>
+          <button class="dest" data-dest="amp" aria-pressed="false"><span class="to">音量に掛ける</span><span class="fx">トレモロ</span></button>
+          <button class="dest" data-dest="filter" aria-pressed="false"><span class="to">フィルターに掛ける</span><span class="fx">ワウ</span></button>
+        </div>
+        <div class="ctl">
+          <label>CC#1 モジュレーション（揺れの深さ） <span class="val" id="modVal">60</span></label>
+          <input type="range" id="modDepth" min="0" max="127" value="60">
+        </div>
+        <div class="ctl">
+          <label>LFO速度（音源側の設定・MIDIでは送らない） <span class="val" id="rateVal">5.5 Hz</span></label>
+          <input type="range" id="modRate" min="1" max="12" step="0.5" value="5.5">
+        </div>
+        <button id="modToggle" aria-pressed="false">▶ 持続音で聴く（ON/OFF）</button>
+        <br><span class="kbd-hint"><b>A S D F G H J K</b> で演奏しながら効果を確認できます</span>
+        <p class="note" style="margin-top:12px;">MIDIで送れるのは深さ（CC#1）だけ。掛け先と速度は音源側の設定。GM準拠音源（例：SAM2695）はデフォルトで音程に掛かるため、実質「ビブラートの深さ」として機能する。</p>
+      </div>
+      <div>
+        <canvas id="lfoCanvas" width="560" height="240"></canvas>
+        <p class="note" style="margin-top:8px;" id="lfoCaption">LFO波形 → 音程を揺らしている（ビブラート）</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. ADSR ============ -->
+<section id="adsr">
+  <h2>ADSR エンベロープ</h2>
+  <p class="sub">鍵盤を押してから音が消えるまでの音量変化を、4つのパラメータで表す</p>
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <div class="ctl"><label>Attack 立ち上がり <span class="val" id="aVal">50 ms</span></label><input type="range" id="aSlider" min="1" max="2000" value="50"></div>
+        <div class="ctl"><label>Decay 減衰 <span class="val" id="dVal">200 ms</span></label><input type="range" id="dSlider" min="1" max="2000" value="200"></div>
+        <div class="ctl"><label>Sustain 維持レベル（時間ではなく音量） <span class="val" id="sVal">70</span></label><input type="range" id="sSlider" min="0" max="127" value="70"></div>
+        <div class="ctl"><label>Release 余韻 <span class="val" id="rVal">400 ms</span></label><input type="range" id="rSlider" min="1" max="3000" value="400"></div>
+        <h3>音色 ＝ 波形を選ぶ（プログラムチェンジ 0xCn）</h3>
+        <div class="wave-row" id="waveRow"></div>
+        <h3>鍵盤（押している間＝Note On、離す＝Note Off）</h3>
+        <div class="kbd" id="kbd"></div>
+        <span class="kbd-hint"><b>A S D F G H J K</b> ＝ ド レ ミ ファ ソ ラ シ ド</span>
+        <p class="note" style="margin-top:10px;">ADSRのSustain（音量レベル）とサスティンペダル（CC#64、ON/OFF）は別物。MIDIではCC#73＝Attack、CC#75＝Decay、CC#72＝Releaseに割り当てられている。</p>
+      </div>
+      <div>
+        <canvas id="envCanvas" width="560" height="300"></canvas>
+        <p class="note" style="margin-top:8px;">現在のエンベロープ形状（S だけが縦軸＝レベル、他は横軸＝時間）</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. CC map ============ -->
+<section id="ccmap">
+  <h2>コントロールチェンジ（CC）番号の全体地図</h2>
+  <p class="sub">「設計図」ではなく「増改築を繰り返した建物の現況図」――マスをクリックすると説明がポップアップ、凡例クリックで絞り込み</p>
+  <div class="legend" id="legend"></div>
+  <div class="ccgrid" id="ccgrid"></div>
+  <div class="takeaway"><strong>GM音源（SAM2695など）の実務で覚えるのは9個だけ：</strong> 1 モジュレーション ／ 7 ボリューム ／ 10 パン ／ 11 エクスプレッション ／ 64 サスティン ／ 91 リバーブ ／ 93 コーラス ／ 120・123 緊急停止</div>
+</section>
+
+<!-- ============ 5. history ============ -->
+<section id="history">
+  <h2>なぜこうなった？ ――40年の増改築史</h2>
+  <p class="sub">一度製品が世に出ると、互換性のため番号の変更・再利用ができない。だから「地層」が積み重なる</p>
+  <div class="timeline">
+    <div class="era" style="border-top-color: var(--teal);">
+      <div class="year" style="color: var(--teal);">1983</div>
+      <h3>MIDI 1.0 原設計</h3>
+      <p>目的は「鍵盤演奏の物理操作の伝送」。ホイールやペダルなど実在の操作子に0〜63を割り当て。MSB/LSBペアで14bit化も構想。120〜127は命令用に予約。</p>
+    </div>
+    <div class="era" style="border-top-color: #5B8A85;">
+      <div class="year" style="color: #5B8A85;">80〜90年代</div>
+      <h3>構想の死蔵と凍結</h3>
+      <p>LSB（32〜63）を使う機器がほぼ現れず死に地層に。普及した番号は互換性のため変更不可能になり、欠番は欠番のまま凍結。</p>
+    </div>
+    <div class="era" style="border-top-color: #7C5CD6;">
+      <div class="year" style="color: #7C5CD6;">90年代</div>
+      <h3>GM/GS/XGの増築</h3>
+      <p>「音色エディットもCCで送りたい」需要で空き地に増築（70〜79, 91〜95）。さらに128番地では足りず、RPN/NRPNという間接参照の仕組みを追加。</p>
+    </div>
+    <div class="era" style="border-top-color: var(--orange);">
+      <div class="year" style="color: var(--orange);">2020年代</div>
+      <h3>MIDI 2.0 で再整理</h3>
+      <p>32bit分解能の整理されたController体系に刷新。ただしMIDI 1.0機器は世界中に残るため、この地層は今後も生き続ける。</p>
+    </div>
+  </div>
+  <div class="takeaway"><strong>読み方のコツ：</strong>この表は暗記するものではなく「地層図」として読む。どの区画がいつ・何のために増築されたかが分かれば、欠番も重複した名前も、すべて歴史的な必然として説明がつく。</div>
+</section>
+
+</main>
+
+<div id="ccPop" role="dialog" aria-modal="false" aria-label="CCの説明">
+  <button class="close" id="ccPopClose" aria-label="閉じる">✕</button>
+  <div id="ccPopBody"></div>
+</div>
+
+<div id="monitor" aria-live="polite">
+  <div class="mtitle">MIDI Byte Monitor — 操作すると実際に送られるバイト列が表示されます</div>
+  <div id="mlines"></div>
+</div>
+
+<script>
+"use strict";
+// =====================================================================
+// Byte monitor
+// =====================================================================
+const mlines = document.getElementById('mlines');
+const hx = (b) => b.toString(16).toUpperCase().padStart(2, '0');
+function logMidi(bytes, decode) {
+  const line = document.createElement('div');
+  line.className = 'line';
+  const hexTxt = bytes.length ? bytes.map(hx).join(' ') : '--';
+  line.innerHTML = '<span class="hexpart">' + hexTxt + '</span>  →  ' + decode;
+  mlines.prepend(line);
+  while (mlines.children.length > 3) mlines.removeChild(mlines.lastChild);
+}
+
+// =====================================================================
+// WebAudio core + global modulation bus
+// =====================================================================
+let AC = null, master = null;
+let lfo = null, tapPitch = null, tapAmp = null, tapFilter = null;
+let destination = 'pitch';
+
+function ensureAudio() {
+  if (!AC) {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    master = AC.createGain();
+    master.gain.value = 0.22;
+    master.connect(AC.destination);
+    // one global LFO with three destination taps
+    lfo = AC.createOscillator();
+    lfo.frequency.value = parseFloat(modRate.value);
+    tapPitch = AC.createGain();   // → osc.detune (cents)
+    tapAmp = AC.createGain();     // → tremolo gain.gain
+    tapFilter = AC.createGain();  // → filter.frequency (Hz)
+    lfo.connect(tapPitch); lfo.connect(tapAmp); lfo.connect(tapFilter);
+    lfo.start();
+    applyDepth();
+  }
+  if (AC.state === 'suspended') AC.resume();
+}
+
+function applyDepth() {
+  if (!AC) return;
+  const d = parseInt(modDepth.value) / 127;
+  const t = AC.currentTime;
+  tapPitch.gain.setTargetAtTime(destination === 'pitch' ? d * 80 : 0, t, 0.02);   // ±80 cents
+  tapAmp.gain.setTargetAtTime(destination === 'amp' ? d * 0.85 : 0, t, 0.02);     // ±0.85 gain
+  tapFilter.gain.setTargetAtTime(destination === 'filter' ? d * 1600 : 0, t, 0.02); // ±1600 Hz
+}
+
+// build one voice routed through the modulation bus
+function makeVoice(freq, waveform) {
+  const osc = AC.createOscillator();
+  osc.type = waveform;
+  osc.frequency.value = freq;
+  tapPitch.connect(osc.detune);
+
+  const filter = AC.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 2200;
+  filter.Q.value = 5;
+  tapFilter.connect(filter.frequency);
+
+  const trem = AC.createGain();   // tremolo target (base 1.0)
+  trem.gain.value = 1.0;
+  tapAmp.connect(trem.gain);
+
+  const env = AC.createGain();    // ADSR envelope
+  env.gain.value = 0.0001;
+
+  osc.connect(filter).connect(trem).connect(env).connect(master);
+  osc.start();
+  return { osc, filter, trem, env };
+}
+function killVoice(v, when) {
+  v.osc.stop(when);
+  // disconnect modulation taps a bit later to free nodes
+  setTimeout(() => {
+    try { tapPitch.disconnect(v.osc.detune); } catch (e) {}
+    try { tapFilter.disconnect(v.filter.frequency); } catch (e) {}
+    try { tapAmp.disconnect(v.trem.gain); } catch (e) {}
+  }, (when - AC.currentTime) * 1000 + 400);
+}
+
+// =====================================================================
+// Modulation demo controls
+// =====================================================================
+const modDepth = document.getElementById('modDepth');
+const modRate = document.getElementById('modRate');
+const modVal = document.getElementById('modVal');
+const rateVal = document.getElementById('rateVal');
+const modToggle = document.getElementById('modToggle');
+const lfoCaption = document.getElementById('lfoCaption');
+let drone = null;
+
+const destRow = document.getElementById('destRow');
+const destInfo = {
+  pitch:  { fx: 'ビブラート', cap: 'LFO波形 → 音程を揺らしている（ビブラート）' },
+  amp:    { fx: 'トレモロ',   cap: 'LFO波形 → 音量を揺らしている（トレモロ）' },
+  filter: { fx: 'ワウ',       cap: 'LFO波形 → フィルターを揺らしている（ワウ）' },
+};
+destRow.querySelectorAll('.dest').forEach(btn => {
+  btn.addEventListener('click', () => {
+    destRow.querySelectorAll('.dest').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    btn.setAttribute('aria-pressed', 'true');
+    destination = btn.dataset.dest;
+    lfoCaption.textContent = destInfo[destination].cap;
+    if (AC) applyDepth();
+    logMidi([], '掛け先を「' + destInfo[destination].fx + '」へ変更（音源側の設定：MIDIメッセージは送られない）');
+  });
+});
+
+modToggle.addEventListener('click', () => {
+  ensureAudio();
+  if (!drone) {
+    drone = makeVoice(440, 'triangle');
+    drone.env.gain.setTargetAtTime(0.9, AC.currentTime, 0.02);
+    modToggle.setAttribute('aria-pressed', 'true');
+    logMidi([0x90, 69, 100], 'Note On ch1 ノート69(A4) vel100');
+  } else {
+    const t = AC.currentTime;
+    const g = drone.env.gain;
+    if (g.cancelAndHoldAtTime) g.cancelAndHoldAtTime(t);
+    else { const cur = Math.max(g.value, 0.0001); g.cancelScheduledValues(t); g.setValueAtTime(cur, t); }
+    g.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    g.setValueAtTime(0, t + 0.13);
+    killVoice(drone, t + 0.2);
+    drone = null;
+    modToggle.setAttribute('aria-pressed', 'false');
+    logMidi([0x80, 69, 0], 'Note Off ch1 ノート69');
+  }
+});
+modDepth.addEventListener('input', () => {
+  modVal.textContent = modDepth.value;
+  if (AC) applyDepth();
+  logMidi([0xB0, 1, parseInt(modDepth.value)], 'CC ch1 #1 モジュレーション = ' + modDepth.value);
+});
+modRate.addEventListener('input', () => {
+  rateVal.textContent = modRate.value + ' Hz';
+  if (lfo) lfo.frequency.setTargetAtTime(parseFloat(modRate.value), AC.currentTime, 0.02);
+});
+
+// LFO canvas
+const lfoCv = document.getElementById('lfoCanvas');
+const lfoCtx = lfoCv.getContext('2d');
+let lfoPhase = 0, lastT = performance.now();
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function anySoundOn() { return drone !== null || Object.keys(active).length > 0; }
+function drawLFO() {
+  const w = lfoCv.width, h = lfoCv.height;
+  lfoCtx.clearRect(0, 0, w, h);
+  lfoCtx.strokeStyle = '#D8DCE4';
+  lfoCtx.beginPath(); lfoCtx.moveTo(0, h / 2); lfoCtx.lineTo(w, h / 2); lfoCtx.stroke();
+  const depth = parseInt(modDepth.value) / 127;
+  const amp = depth * (h / 2 - 14);
+  const cyc = parseFloat(modRate.value) / 2.2;
+  lfoCtx.strokeStyle = '#0D9488';
+  lfoCtx.lineWidth = 4; lfoCtx.lineCap = 'round';
+  lfoCtx.beginPath();
+  for (let x = 0; x <= w; x += 2) {
+    const y = h / 2 - amp * Math.sin((x / w) * cyc * 2 * Math.PI + lfoPhase);
+    x === 0 ? lfoCtx.moveTo(x, y) : lfoCtx.lineTo(x, y);
+  }
+  lfoCtx.stroke();
+}
+function tick(t) {
+  if (anySoundOn() && !reduceMotion) lfoPhase += (t - lastT) / 1000 * parseFloat(modRate.value) * 2 * Math.PI * 0.4;
+  lastT = t;
+  drawLFO();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// =====================================================================
+// ADSR demo
+// =====================================================================
+const sliders = {
+  a: document.getElementById('aSlider'), d: document.getElementById('dSlider'),
+  s: document.getElementById('sSlider'), r: document.getElementById('rSlider'),
+};
+const vals = {
+  a: document.getElementById('aVal'), d: document.getElementById('dVal'),
+  s: document.getElementById('sVal'), r: document.getElementById('rVal'),
+};
+const ccOfAdsr = { a: 73, d: 75, r: 72 };
+const nameOfAdsr = { a: 'アタックタイム', d: 'ディケイタイム', s: 'サスティンレベル', r: 'リリースタイム' };
+function adsr() {
+  return {
+    a: parseInt(sliders.a.value) / 1000,
+    d: parseInt(sliders.d.value) / 1000,
+    s: parseInt(sliders.s.value) / 127,
+    r: parseInt(sliders.r.value) / 1000,
+  };
+}
+Object.keys(sliders).forEach(k => {
+  sliders[k].addEventListener('input', () => {
+    vals[k].textContent = k === 's' ? sliders.s.value : sliders[k].value + ' ms';
+    drawEnv();
+    if (k === 's') {
+      logMidi([], '（Sustainレベルは音色設計値：標準CCなし。音源によりNRPN等で設定）');
+    } else {
+      const v = Math.min(127, Math.round(parseInt(sliders[k].value) / 2000 * 127));
+      logMidi([0xB0, ccOfAdsr[k], v], 'CC ch1 #' + ccOfAdsr[k] + ' ' + nameOfAdsr[k] + ' = ' + v);
+    }
+  });
+});
+
+const envCv = document.getElementById('envCanvas');
+const envCtx = envCv.getContext('2d');
+function drawEnv() {
+  const { a, d, s, r } = adsr();
+  const w = envCv.width, h = envCv.height, pad = 34;
+  envCtx.clearRect(0, 0, w, h);
+  envCtx.strokeStyle = '#6B7280'; envCtx.lineWidth = 2;
+  envCtx.beginPath(); envCtx.moveTo(pad, 10); envCtx.lineTo(pad, h - pad); envCtx.lineTo(w - 8, h - pad); envCtx.stroke();
+  const hold = 0.8;
+  const total = a + d + hold + r;
+  const X = (t) => pad + (t / total) * (w - pad - 16);
+  const Y = (lv) => (h - pad) - lv * (h - pad - 20);
+  const susY = Y(s);
+  envCtx.strokeStyle = '#D97706'; envCtx.setLineDash([6, 6]); envCtx.lineWidth = 1.5;
+  envCtx.beginPath(); envCtx.moveTo(pad, susY); envCtx.lineTo(X(a + d + hold), susY); envCtx.stroke();
+  envCtx.setLineDash([]);
+  envCtx.strokeStyle = '#0D9488'; envCtx.lineWidth = 5; envCtx.lineJoin = 'round'; envCtx.lineCap = 'round';
+  envCtx.beginPath();
+  envCtx.moveTo(X(0), Y(0));
+  envCtx.lineTo(X(a), Y(1));
+  envCtx.lineTo(X(a + d), susY);
+  envCtx.lineTo(X(a + d + hold), susY);
+  envCtx.lineTo(X(total), Y(0));
+  envCtx.stroke();
+  envCtx.fillStyle = '#1F2430'; envCtx.font = 'bold 20px Arial'; envCtx.textAlign = 'center';
+  envCtx.fillText('A', X(a / 2), h - pad - 8);
+  envCtx.fillText('D', X(a + d / 2), h - pad - 8);
+  envCtx.fillText('S', X(a + d + hold / 2), h - pad - 8);
+  envCtx.fillText('R', X(a + d + hold + r / 2), h - pad - 8);
+  envCtx.fillStyle = '#D97706';
+  envCtx.beginPath(); envCtx.arc(X(0), Y(0), 6, 0, 7); envCtx.fill();
+  envCtx.beginPath(); envCtx.arc(X(a + d + hold), susY, 6, 0, 7); envCtx.fill();
+}
+drawEnv();
+
+// --- waveform selector with visual icons (Program Change) ---
+const waves = [
+  { type: 'sine',     jp: 'サイン波',   path: wavePath('sine') },
+  { type: 'triangle', jp: '三角波',     path: wavePath('triangle') },
+  { type: 'sawtooth', jp: 'ノコギリ波', path: wavePath('sawtooth') },
+  { type: 'square',   jp: '矩形波',     path: wavePath('square') },
+];
+function wavePath(type) {
+  // 88x32 viewBox, 2 cycles
+  const w = 88, h = 32, mid = h / 2, amp = 12, cyc = 2;
+  if (type === 'sine') {
+    let d = '';
+    for (let x = 0; x <= w; x += 2) {
+      const y = mid - amp * Math.sin((x / w) * cyc * 2 * Math.PI);
+      d += (x === 0 ? 'M' : 'L') + x + ',' + y.toFixed(1);
+    }
+    return d;
+  }
+  const seg = w / cyc;
+  if (type === 'triangle') {
+    let d = 'M0,' + mid;
+    for (let i = 0; i < cyc; i++) {
+      const o = i * seg;
+      d += ' L' + (o + seg * 0.25) + ',' + (mid - amp) + ' L' + (o + seg * 0.75) + ',' + (mid + amp) + ' L' + (o + seg) + ',' + mid;
+    }
+    return d;
+  }
+  if (type === 'sawtooth') {
+    let d = 'M0,' + (mid + amp);
+    for (let i = 0; i < cyc; i++) {
+      const o = i * seg;
+      d += ' L' + (o + seg) + ',' + (mid - amp) + ' L' + (o + seg) + ',' + (mid + amp);
+    }
+    return d;
+  }
+  // square
+  let d = 'M0,' + (mid - amp);
+  for (let i = 0; i < cyc; i++) {
+    const o = i * seg;
+    d += ' L' + (o + seg / 2) + ',' + (mid - amp) + ' L' + (o + seg / 2) + ',' + (mid + amp) + ' L' + (o + seg) + ',' + (mid + amp);
+    d += ' L' + (o + seg) + ',' + (mid - amp);
+  }
+  return d;
+}
+let waveIndex = 0;
+const waveRow = document.getElementById('waveRow');
+waves.forEach((wv, i) => {
+  const b = document.createElement('button');
+  b.className = 'wave-btn';
+  b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+  b.setAttribute('aria-label', wv.jp);
+  b.innerHTML =
+    '<svg width="88" height="32" viewBox="0 0 88 32" aria-hidden="true">' +
+    '<path d="' + wv.path + '" fill="none" stroke="#5C6270" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>' +
+    '<span class="wname">' + i + '：' + wv.jp + '</span>';
+  b.addEventListener('click', () => {
+    waveIndex = i;
+    waveRow.querySelectorAll('.wave-btn').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true');
+    logMidi([0xC0, i], 'Program Change ch1 → 音色 ' + i + '（' + wv.jp + '）データ1バイトの珍しい形式');
+  });
+  waveRow.appendChild(b);
+});
+
+// --- keyboard: on-screen + ASDFGHJK ---
+const kbd = document.getElementById('kbd');
+const notes = [60, 62, 64, 65, 67, 69, 71, 72];
+const keyChars = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K'];
+const keyToNote = {};
+keyChars.forEach((c, i) => keyToNote[c.toLowerCase()] = notes[i]);
+const keyEls = {};
+const active = {};
+
+notes.forEach((n, i) => {
+  const k = document.createElement('div');
+  k.className = 'key'; k.tabIndex = 0;
+  k.setAttribute('role', 'button');
+  k.setAttribute('aria-label', 'ノート' + n + '（キー ' + keyChars[i] + '）');
+  k.innerHTML = '<span class="kc">' + keyChars[i] + '</span><span class="kn">' + n + '</span>';
+  keyEls[n] = k;
+  const down = () => noteOn(n);
+  const up = () => noteOff(n);
+  k.addEventListener('pointerdown', (e) => { e.preventDefault(); down(); });
+  k.addEventListener('pointerup', up);
+  k.addEventListener('pointerleave', up);
+  k.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); down(); } });
+  k.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') up(); });
+  kbd.appendChild(k);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  const t = e.target;
+  if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(t.type)))) return;
+  const n = keyToNote[e.key.toLowerCase()];
+  if (n !== undefined) { e.preventDefault(); noteOn(n); }
+});
+document.addEventListener('keyup', (e) => {
+  const n = keyToNote[e.key.toLowerCase()];
+  if (n !== undefined) noteOff(n);
+});
+window.addEventListener('blur', () => { Object.keys(active).forEach(n => noteOff(parseInt(n))); });
+
+function midiToFreq(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+function noteOn(n) {
+  if (active[n]) return;
+  ensureAudio();
+  const { a, d, s } = adsr();
+  const v = makeVoice(midiToFreq(n), waves[waveIndex].type);
+  const t = AC.currentTime;
+  v.env.gain.setValueAtTime(0.0001, t);
+  v.env.gain.linearRampToValueAtTime(1, t + a);
+  v.env.gain.setTargetAtTime(Math.max(s, 0.0001), t + a, Math.max(d / 3, 0.005));
+  active[n] = v;
+  keyEls[n].classList.add('down');
+  logMidi([0x90, n, 100], 'Note On ch1 ノート' + n + ' vel100');
+}
+function noteOff(n) {
+  const v = active[n];
+  if (!v) return;
+  const { r } = adsr();
+  const t = AC.currentTime;
+  const g = v.env.gain;
+  // ランプ途中で離してもゲインが飛ばないよう、現在値を保持してからリリース
+  if (g.cancelAndHoldAtTime) {
+    g.cancelAndHoldAtTime(t);
+  } else {
+    const cur = Math.max(g.value, 0.0001);
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(cur, t);
+  }
+  const rel = Math.max(r, 0.03);
+  g.exponentialRampToValueAtTime(0.0001, t + rel);
+  g.setValueAtTime(0, t + rel + 0.01);
+  killVoice(v, t + rel + 0.08);
+  delete active[n];
+  keyEls[n].classList.remove('down');
+  logMidi([0x80, n, 0], 'Note Off ch1 ノート' + n + '（消音命令ではなく"離した"報告）');
+}
+
+// =====================================================================
+// CC map with names + popup
+// =====================================================================
+const CAT = {
+  msb:   { hex: '#2DD4BF', label: '連続コントロール（MSB）', note: '1983年の原設計。実在の操作子に割り当てられた区画' },
+  lsb:   { hex: '#A9CCC8', label: 'LSBペア（32〜63）', note: '14bit化のためのLSB。ほぼ使われず死蔵された区画' },
+  sw:    { hex: '#F59E0B', label: 'スイッチ／ペダル', note: 'ON/OFF系。63以下がOFF、64以上がON' },
+  sound: { hex: '#A78BFA', label: 'サウンドコントロール', note: 'GM時代の増築。番号に固有名がなく「推奨割り当て」のみ' },
+  fx:    { hex: '#F472B6', label: 'エフェクトデプス', note: 'GM時代の増築。途中で意味が改定された歴史を持つ' },
+  rpn:   { hex: '#FACC15', label: 'RPN/NRPN機構', note: '128番地の不足を補う間接参照の仕組み' },
+  gp:    { hex: '#60A5FA', label: '汎用操作子・特殊', note: 'メーカー自由領域＋後年の追加' },
+  mode:  { hex: '#F87171', label: 'チャンネルモード（命令）', note: 'つまみではなく命令。1983年の原設計から予約された聖域' },
+  undef: { hex: '#EDEFF4', label: '未定義（欠番）', note: '将来用の空き地。互換性のため凍結されたまま' },
+};
+const MSB_NAMES = {
+  0: 'バンクセレクト', 1: 'モジュレーション', 2: 'ブレスコントロール', 4: 'フットコントローラー',
+  5: 'ポルタメントタイム', 6: 'データエントリー', 7: 'ボリューム', 8: 'バランス',
+  10: 'パン', 11: 'エクスプレッション', 12: 'エフェクトCtrl 1', 13: 'エフェクトCtrl 2',
+  16: '汎用操作子1', 17: '汎用操作子2', 18: '汎用操作子3', 19: '汎用操作子4',
+};
+const HI_NAMES = {
+  64: 'サスティンペダル', 65: 'ポルタメントSW', 66: 'ソステヌート', 67: 'ソフトペダル',
+  68: 'レガートSW', 69: 'ホールド2',
+  70: '音色バリエーション', 71: 'ティンバー/レゾナンス', 72: 'リリースタイム', 73: 'アタックタイム',
+  74: 'ブライトネス', 75: 'ディケイタイム', 76: 'ビブラート速さ', 77: 'ビブラート深さ',
+  78: 'ビブラート遅延', 79: 'サウンドCtrl 10',
+  80: '汎用操作子5', 81: '汎用操作子6', 82: '汎用操作子7', 83: '汎用操作子8',
+  84: 'ポルタメント制御', 88: '高精度ベロシティ',
+  91: 'リバーブ量', 92: 'トレモロ量', 93: 'コーラス量', 94: 'デチューン量', 95: 'フェイザー量',
+  96: 'データ +1', 97: 'データ −1', 98: 'NRPN（LSB）', 99: 'NRPN（MSB）',
+  100: 'RPN（LSB）', 101: 'RPN（MSB）',
+  120: 'オールサウンドOFF', 121: 'リセット全CC', 122: 'ローカル制御', 123: 'オールノートOFF',
+  124: 'オムニOFF', 125: 'オムニON', 126: 'モノモード', 127: 'ポリモード',
+};
+const DESC = {
+  0: 'プログラムチェンジと組み合わせて128種類を超える音色バンクを切り替える。',
+  1: 'LFOの掛かり具合を制御。GM音源では実質ビブラートの深さ。上のデモで体験した通り、掛け先しだいでトレモロやワウにもなる。',
+  2: '管楽器型コントローラーの息の強さを伝える。',
+  4: '足元のペダル（連続値）に対応。',
+  5: '音から音へ滑らかにつながる速さ（ポルタメント）の時間。',
+  6: 'RPN/NRPNで選んだパラメータに値を書き込む「万能ペン」。単独では意味を持たない。',
+  7: 'チャンネル全体の音量の基準値。演奏中の抑揚はCC#11で。',
+  8: '2音源間の音量バランス。',
+  10: '左右の定位。0=左、64=中央、127=右。',
+  11: 'ボリューム内でのさらなる抑揚付け。息の強弱のような表現に使う。',
+  16: 'メーカーや機器が自由に使える汎用スロット。', 17: 'メーカーや機器が自由に使える汎用スロット。',
+  18: 'メーカーや機器が自由に使える汎用スロット。', 19: 'メーカーや機器が自由に使える汎用スロット。',
+  64: 'ダンパーペダル。ONの間はNote Offが来ても鳴り続ける。ADSRのSustain（音量レベル）とは別物。',
+  65: 'ポルタメントのON/OFF。', 66: '押鍵中の音だけ保持するペダル。', 67: '音を柔らかくするペダル。',
+  70: '音色のバリエーション切り替え（推奨割り当て）。',
+  71: 'フィルターのレゾナンス（癖の強さ）。',
+  72: 'ADSRのRelease（余韻の長さ）に対応。', 73: 'ADSRのAttack（立ち上がり）に対応。',
+  74: 'フィルターのカットオフ＝音の明るさ。', 75: 'ADSRのDecay（減衰）に対応。',
+  76: 'ビブラートの速さ。', 77: 'ビブラートの深さ。', 78: '鳴り始めからビブラートが掛かるまでの遅延。',
+  84: '次のノートへ滑らかにつなぐ起点ノートを指定。',
+  88: '直後のNote On/Offのベロシティを14bit化する接頭辞。2010年代に欠番が埋まった珍しい例。',
+  91: 'リバーブへ送る量。SAM2695も対応。', 92: 'トレモロの深さ（旧定義の名残）。',
+  93: 'コーラスへ送る量。SAM2695も対応。', 94: 'デチューン量（旧：セレステ）。', 95: 'フェイザーの深さ。',
+  96: 'RPN/NRPNで選んだパラメータの値を+1する。', 97: 'RPN/NRPNで選んだパラメータの値を−1する。',
+  98: 'メーカー独自パラメータの番号指定（下位）。RolandとYamahaで中身が全く違う。',
+  99: 'メーカー独自パラメータの番号指定（上位）。',
+  100: 'CC#101とペアで「どのパラメータを編集するか」を指定。例：0/0=ピッチベンド感度。',
+  101: 'CC#100とペアで使用。設定後は127/127のNullで閉じるのが作法。',
+  120: '即時に全消音（余韻も切る）。音が止まらなくなったときの最終手段。',
+  121: 'モジュレーションやペダルなどのCC状態を初期値に戻す。',
+  122: '鍵盤と内蔵音源の直結を切り離すスイッチ。',
+  123: '全ノートをOFF（余韻は残る）。緊急停止の定番。',
+  124: 'オムニモードOFF（指定チャンネルのみ受信）。', 125: 'オムニモードON（全チャンネル受信）。',
+  126: '単音モードへ切り替え。', 127: '和音モードへ切り替え。',
+};
+function catOf(n) {
+  if (n >= 120) return 'mode';
+  if (n >= 102) return 'undef';
+  if (n >= 96) return 'rpn';
+  if (n >= 91) return 'fx';
+  if (n === 89 || n === 90) return 'undef';
+  if (n === 88) return 'gp';
+  if (n >= 85) return 'undef';
+  if (n === 84) return 'gp';
+  if (n >= 80) return 'gp';
+  if (n >= 70) return 'sound';
+  if (n >= 64) return 'sw';
+  if (n >= 32) {
+    const m = n - 32;
+    if (m === 6) return 'rpn';
+    return (m in MSB_NAMES) ? 'lsb' : 'undef';
+  }
+  if (n === 6) return 'rpn';
+  if (n >= 16 && n <= 19) return 'gp';
+  return (n in MSB_NAMES) ? 'msb' : 'undef';
+}
+function nameOf(n) {
+  if (n in HI_NAMES) return HI_NAMES[n];
+  if (n < 32) return MSB_NAMES[n] || '未定義';
+  if (n < 64) {
+    const m = n - 32;
+    return (m in MSB_NAMES) ? MSB_NAMES[m] + '（LSB）' : '未定義';
+  }
+  return '未定義';
+}
+function descOf(n, cat) {
+  if (n in DESC) return DESC[n];
+  if (cat === 'lsb') {
+    const m = n - 32;
+    return 'CC#' + m + '（' + (MSB_NAMES[m] || '') + '）の下位バイト。ペアで使うと128段階→16,384段階になるが、実際にはほとんど使われなかった。';
+  }
+  if (cat === 'undef') return CAT.undef.note + '。メーカーが独自用途に使うことはできる。';
+  return CAT[cat].note + '。';
+}
+
+const grid = document.getElementById('ccgrid');
+const pop = document.getElementById('ccPop');
+const popBody = document.getElementById('ccPopBody');
+let filter = null;
+
+for (let n = 0; n < 128; n++) {
+  const cat = catOf(n);
+  const cell = document.createElement('div');
+  cell.className = 'cell' + (cat === 'undef' ? ' undef' : '');
+  cell.style.background = CAT[cat].hex;
+  cell.dataset.cat = cat;
+  cell.dataset.n = n;
+  cell.tabIndex = 0;
+  cell.setAttribute('role', 'button');
+  cell.setAttribute('aria-label', 'CC' + n + ' ' + nameOf(n));
+  cell.innerHTML = '<span class="num">' + n + '</span><span class="name">' + nameOf(n) + '</span>';
+  const open = (e) => { e.stopPropagation(); showPopup(cell, n, cat); };
+  cell.addEventListener('click', open);
+  cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showPopup(cell, n, cat); } });
+  grid.appendChild(cell);
+}
+
+function showPopup(cell, n, cat) {
+  const c = CAT[cat];
+  popBody.innerHTML =
+    '<div class="head"><span class="cc-num">CC#' + n + '</span>' +
+    '<span class="cc-name">' + nameOf(n) + '</span></div>' +
+    '<span class="cc-cat" style="background:' + c.hex + '22; border:1px solid ' + c.hex + ';">' + c.label + '</span>' +
+    '<div class="cc-desc">' + descOf(n, cat) + '</div>' +
+    '<div class="cc-hex">送信例: B0 ' + hx(n) + ' 40（ch1・値64）</div>';
+  pop.classList.add('show');
+  positionPopup(cell);
+  if (cat !== 'undef') logMidi([0xB0, n, 64], 'CC ch1 #' + n + ' ' + nameOf(n) + ' = 64');
+}
+
+function positionPopup(cell) {
+  const r = cell.getBoundingClientRect();
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const margin = 12, gap = 14;
+  const monitorH = document.getElementById('monitor').offsetHeight;
+  // horizontal: center on cell, clamp to viewport
+  let left = r.left + r.width / 2 - pw / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - pw - margin));
+  // vertical: prefer below; flip above if it would hit the monitor
+  let top = r.bottom + gap;
+  let below = false;
+  if (top + ph > window.innerHeight - monitorH - margin) {
+    top = r.top - ph - gap;
+    below = true; // arrow at bottom
+    if (top < margin) top = margin;
+  }
+  pop.style.left = left + 'px';
+  pop.style.top = top + 'px';
+  pop.classList.toggle('below', below);
+  // arrow x aligned to cell center, clamped inside popup
+  const ax = Math.max(18, Math.min(r.left + r.width / 2 - left - 7, pw - 32));
+  pop.style.setProperty('--arrow-x', ax + 'px');
+}
+
+function closePopup() { pop.classList.remove('show'); }
+document.getElementById('ccPopClose').addEventListener('click', closePopup);
+document.addEventListener('click', (e) => { if (pop.classList.contains('show') && !pop.contains(e.target)) closePopup(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopup(); });
+window.addEventListener('scroll', closePopup, { passive: true });
+window.addEventListener('resize', closePopup);
+
+// legend as filters
+const legend = document.getElementById('legend');
+Object.keys(CAT).forEach(key => {
+  const chip = document.createElement('button');
+  chip.className = 'chip';
+  chip.setAttribute('aria-pressed', 'false');
+  chip.innerHTML = '<span class="dot" style="background:' + CAT[key].hex + '"></span>' + CAT[key].label;
+  chip.addEventListener('click', (e) => {
+    e.stopPropagation();
+    filter = (filter === key) ? null : key;
+    legend.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', 'false'));
+    if (filter) chip.setAttribute('aria-pressed', 'true');
+    grid.querySelectorAll('.cell').forEach(c => {
+      c.classList.toggle('dim', filter !== null && c.dataset.cat !== filter);
+    });
+  });
+  legend.appendChild(chip);
+});
+</script>
+</body>
+</html>

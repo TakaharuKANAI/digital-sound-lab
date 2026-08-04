@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>波形生成を触って理解する — オシレーター・モジュレーション・エンベロープ</title>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --ink: #1F2430;
+    --muted: #5C6270;
+    --card: #F2F4F8;
+    --border: #D8DCE4;
+    --accent: #0D9488;
+    --accent-soft: #CCFBF1;
+    --orange: #D97706;
+    --mono: "SFMono-Regular", "Consolas", "Menlo", monospace;
+    --jp: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+  body { font-family: var(--jp); color: var(--ink); background: var(--bg); line-height: 1.7; padding-bottom: 48px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero { padding: 72px 24px 48px; max-width: 1080px; margin: 0 auto; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--accent); text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 800; letter-spacing: 0.01em; line-height: 1.3; }
+  h1 .accent { color: var(--accent); }
+  .lede { margin-top: 16px; font-size: 16px; color: var(--muted); max-width: 46em; }
+  .lede strong { color: var(--ink); }
+
+  section { padding: 48px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  .sub { color: var(--accent); font-size: 14px; font-style: italic; margin-bottom: 24px; }
+  h3 { font-size: 15px; font-weight: 700; margin: 20px 0 8px; }
+  p.note { font-size: 13px; color: var(--muted); }
+  .kbd-hint { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--muted); background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px; }
+  .kbd-hint b { font-family: var(--mono); color: var(--accent); letter-spacing: .12em; }
+
+  .demo { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-top: 16px; }
+  .demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 760px) { .demo-grid { grid-template-columns: 1fr; } }
+  .ctl { margin-bottom: 16px; }
+  .ctl label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .ctl label .val { font-family: var(--mono); color: var(--accent); }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; }
+  button { font-family: var(--jp); font-size: 14px; font-weight: 700; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button:focus-visible, input:focus-visible, .dest:focus-visible, .wave-btn:focus-visible, .key:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+  button:active { transform: translateY(1px); }
+  button[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); }
+  canvas { width: 100%; height: auto; border-radius: 12px; background: #fff; border: 1px solid var(--border); display: block; }
+
+  .dest-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .dest { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 10px 8px; text-align: center; cursor: pointer; font-family: var(--jp); }
+  .dest .to { font-size: 11px; color: var(--muted); display: block; }
+  .dest .fx { font-size: 14px; font-weight: 800; color: var(--ink); }
+  .dest[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .dest[aria-pressed="true"] .fx { color: var(--accent); }
+
+  .wave-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .wave-btn { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 10px 4px 8px; cursor: pointer; text-align: center; }
+  .wave-btn svg { display: block; margin: 0 auto 4px; }
+  .wave-btn .wname { font-size: 12px; font-weight: 700; color: var(--muted); }
+  .wave-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .wave-btn[aria-pressed="true"] .wname { color: var(--accent); }
+  .wave-btn[aria-pressed="true"] svg path { stroke: var(--accent); }
+  .wave-desc { margin-top: 14px; background: #fff; border: 2px solid var(--accent); border-radius: 12px; padding: 14px 18px; font-size: 13.5px; }
+  .wave-desc b { color: var(--accent); }
+
+  .kbd { position: relative; height: 122px; margin-top: 10px; }
+  .kbd .white-row { display: flex; gap: 4px; height: 100%; }
+  .key { flex: 1; border-radius: 0 0 10px 10px; border: 1px solid var(--border); background: #fff; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 8px; user-select: none; touch-action: none; }
+  .key .kc { font-family: var(--mono); font-size: 14px; font-weight: 700; color: var(--accent); }
+  .key .kn { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .key.down { background: var(--accent-soft); border-color: var(--accent); }
+  .key.black { position: absolute; top: 0; width: 8.5%; height: 60%; background: #2A3040; border: 1px solid #1F2430; border-radius: 0 0 7px 7px; z-index: 2; padding-bottom: 6px; }
+  .key.black .kc { color: #5EEAD4; font-size: 12px; }
+  .key.black .kn { color: #9AA2B5; font-size: 9px; }
+  .key.black.down { background: var(--accent); border-color: var(--accent); }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:70;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid #D8DCE4;padding:9px 24px;font-family:sans-serif;font-size:13.5px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+  <a href="./index.html" style="font-weight:700;color:#1F2430;text-decoration:none;margin-right:8px;">🎛 デジタル音源ラボ</a>
+  <a href="./midi.html" style="color:#D97706;text-decoration:none;font-weight:400;opacity:.75;">01 MIDI</a>
+  <a href="./synth.html" style="color:#0D9488;text-decoration:none;font-weight:800;border-bottom:2.5px solid #0D9488;">02 シンセ</a>
+  <a href="./sampler.html" style="color:#B85348;text-decoration:none;font-weight:400;opacity:.75;">03 サンプラー</a>
+</nav>
+
+
+<header class="hero">
+  <div class="eyebrow">Interactive Lecture Notes ── Synthesis</div>
+  <h1>波形生成を<span class="accent">触って</span>理解する</h1>
+  <p class="lede">シンセサイザーの音づくりは3つの要素でできています。<strong>①波形（音色の素材）→ ②モジュレーション（揺らす）→ ③エンベロープ（時間の輪郭）</strong>。このアプリはMIDIとは独立した「音そのもの」の教材です。キーボードの <b style="font-family:var(--mono); color:var(--accent);">A S D F G H J K</b>（黒鍵は W E T Y U）でいつでも演奏できます。</p>
+</header>
+
+<main>
+
+<!-- ============ 1. waveforms ============ -->
+<section id="waves">
+  <h2>① 波形の種類 ── 音色の正体は倍音</h2>
+  <p class="sub">1周期の「形」の違いが、含まれる倍音の違いになり、音色の違いとして聴こえる</p>
+  <div class="demo">
+    <div class="wave-row" id="waveRow"></div>
+    <div class="wave-desc" id="waveDesc"></div>
+    <h3>鍵盤で聴き比べる</h3>
+    <div class="kbd" id="kbd"></div>
+    <span class="kbd-hint"><b>A S D F G H J K</b> ＝ ド レ ミ ファ ソ ラ シ ド（黒鍵は <b>W E T Y U</b>）</span>
+    <p class="note" style="margin-top:10px;">どの波形も「基音（音の高さを決める成分）＋倍音（音色を決める成分）」でできている。形が尖るほど高い倍音が増え、明るくザラついた音になる。これが「合成」の出発点で、ここにフィルターで倍音を削る処理を加えたものが減算合成＝アナログシンセの基本形。</p>
+  </div>
+</section>
+
+<!-- ============ 2. modulation ============ -->
+<section id="mod">
+  <h2>② モジュレーション ── 揺らすと表情になる</h2>
+  <p class="sub">LFO（低周波発振器）の揺れを、どこに・どれだけ深く掛けるか ── 掛け先を切り替えて聴き比べよう</p>
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <h3 style="margin-top:0;">LFOの掛け先</h3>
+        <div class="dest-row" id="destRow">
+          <button class="dest" data-dest="pitch" aria-pressed="true"><span class="to">音程に掛ける</span><span class="fx">ビブラート</span></button>
+          <button class="dest" data-dest="amp" aria-pressed="false"><span class="to">音量に掛ける</span><span class="fx">トレモロ</span></button>
+          <button class="dest" data-dest="filter" aria-pressed="false"><span class="to">フィルターに掛ける</span><span class="fx">ワウ</span></button>
+        </div>
+        <div class="ctl">
+          <label>揺れの深さ <span class="val" id="modVal">60</span></label>
+          <input type="range" id="modDepth" min="0" max="127" value="60">
+        </div>
+        <div class="ctl">
+          <label>LFO速度 <span class="val" id="rateVal">5.5 Hz</span></label>
+          <input type="range" id="modRate" min="0" max="1" step="0.002" value="0.322">
+          <p class="note" style="margin-top:2px;">〜20Hz＝揺れ（ビブラート）／ 30Hz超＝揺れが速すぎて音色の変化として聴こえる ＝ <b>FM合成の原理</b></p>
+        </div>
+        <button id="modToggle" aria-pressed="false">▶ 持続音で聴く（ON/OFF）</button>
+        <br><span class="kbd-hint"><b>A S D F G H J K</b> で演奏しながら効果を確認できます</span>
+      </div>
+      <div>
+        <canvas id="lfoCanvas" width="560" height="240"></canvas>
+        <p class="note" style="margin-top:8px;" id="lfoCaption">LFO波形 → 音程を揺らしている（ビブラート）</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. ADSR ============ -->
+<section id="adsr">
+  <h2>③ ADSR エンベロープ ── 時間の輪郭を彫る</h2>
+  <p class="sub">鍵盤を押してから音が消えるまでの音量変化を、4つのパラメータで表す</p>
+  <div class="demo">
+    <div class="demo-grid">
+      <div>
+        <div class="ctl"><label>Attack 立ち上がり <span class="val" id="aVal">50 ms</span></label><input type="range" id="aSlider" min="1" max="2000" value="50"></div>
+        <div class="ctl"><label>Decay 減衰 <span class="val" id="dVal">200 ms</span></label><input type="range" id="dSlider" min="1" max="2000" value="200"></div>
+        <div class="ctl"><label>Sustain 維持レベル（時間ではなく音量） <span class="val" id="sVal">70</span></label><input type="range" id="sSlider" min="0" max="127" value="70"></div>
+        <div class="ctl"><label>Release 余韻 <span class="val" id="rVal">400 ms</span></label><input type="range" id="rSlider" min="1" max="3000" value="400"></div>
+        <h3>鍵盤で試す</h3>
+        <div class="kbd" id="kbd2"></div>
+        <span class="kbd-hint"><b>A S D F G H J K</b>（黒鍵は <b>W E T Y U</b>）。①で選んだ波形にADSRが掛かる</span>
+        <p class="note" style="margin-top:10px;">エンベロープ（envelope＝封筒）＝振動の外形を包む「包絡線」。Attackを2秒にすればノコギリ波がストリングスに、Releaseを0にすれば矩形波がゲーム音になる ── 同じ波形でも輪郭で楽器が変わる。</p>
+      </div>
+      <div>
+        <canvas id="envCanvas" width="560" height="300"></canvas>
+        <p class="note" style="margin-top:8px;">現在のエンベロープ形状と再生位置（S だけが縦軸＝レベル、他は横軸＝時間）</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<script>
+"use strict";
+// =====================================================================
+// WebAudio core + modulation bus
+// =====================================================================
+let AC = null, master = null;
+let lfo = null, tapPitch = null, tapAmp = null, tapFilter = null;
+let destination = 'pitch';
+
+function ensureAudio() {
+  if (!AC) {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    master = AC.createGain();
+    master.gain.value = 0.22;
+    master.connect(AC.destination);
+    lfo = AC.createOscillator();
+    lfo.frequency.value = lfoRate();
+    tapPitch = AC.createGain();
+    tapAmp = AC.createGain();
+    tapFilter = AC.createGain();
+    lfo.connect(tapPitch); lfo.connect(tapAmp); lfo.connect(tapFilter);
+    lfo.start();
+    applyDepth();
+  }
+  if (AC.state === 'suspended') AC.resume();
+}
+
+function applyDepth() {
+  if (!AC) return;
+  const d = parseInt(modDepth.value) / 127;
+  const t = AC.currentTime;
+  tapPitch.gain.setTargetAtTime(destination === 'pitch' ? d * 80 : 0, t, 0.02);
+  tapAmp.gain.setTargetAtTime(destination === 'amp' ? d * 0.85 : 0, t, 0.02);
+  tapFilter.gain.setTargetAtTime(destination === 'filter' ? d * 1600 : 0, t, 0.02);
+}
+
+function makeVoice(freq, waveform) {
+  const osc = AC.createOscillator();
+  osc.type = waveform;
+  osc.frequency.value = freq;
+  tapPitch.connect(osc.detune);
+
+  const filter = AC.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 2200;
+  filter.Q.value = 5;
+  tapFilter.connect(filter.frequency);
+
+  const trem = AC.createGain();
+  trem.gain.value = 1.0;
+  tapAmp.connect(trem.gain);
+
+  const env = AC.createGain();
+  env.gain.value = 0.0001;
+  const rel = AC.createGain();
+  rel.gain.value = 1;
+
+  osc.connect(filter).connect(trem).connect(env).connect(rel).connect(master);
+  osc.start();
+  return { osc, filter, trem, env, rel };
+}
+function killVoice(v, when) {
+  if (v.osc) v.osc.stop(when);
+  setTimeout(() => {
+    try { if (v.osc) tapPitch.disconnect(v.osc.detune); } catch (e) {}
+    try { tapFilter.disconnect(v.filter.frequency); } catch (e) {}
+    try { tapAmp.disconnect(v.trem.gain); } catch (e) {}
+  }, (when - AC.currentTime) * 1000 + 400);
+}
+
+// =====================================================================
+// ① 波形選択
+// =====================================================================
+const waves = [
+  { type: 'sine', jp: 'サイン波',
+    desc: '<b>倍音なし＝基音だけ</b>の最も純粋な音。丸く澄んでいて、音叉やオカリナに近い。他の全ての波形は、このサイン波を重ね合わせたものとして説明できる（フーリエの定理）。' },
+  { type: 'triangle', jp: '三角波',
+    desc: '<b>奇数倍音のみ、しかも急速に弱くなる</b>（1/n²）。サイン波に少しだけ艶を足したような柔らかい音。ファミコンのベースやフルート系の音色に使われた。' },
+  { type: 'sawtooth', jp: 'ノコギリ波',
+    desc: '<b>すべての倍音を含む</b>（強さは1/n）。最も豊かでブライトな音。ストリングスやブラスの素材として定番で、ここからフィルターで倍音を削っていくのが減算合成の王道。' },
+  { type: 'square', jp: '矩形波',
+    desc: '<b>奇数倍音のみ</b>（強さは1/n）。偶数倍音が抜けているため中空で「木管的」な響き。クラリネットの音響構造と同じで、ファミコンのメロディの音はこれ。' },
+];
+function wavePath(type) {
+  const w = 88, h = 32, mid = h / 2, amp = 12, cyc = 2;
+  if (type === 'sine') {
+    let d = '';
+    for (let x = 0; x <= w; x += 2) {
+      const y = mid - amp * Math.sin((x / w) * cyc * 2 * Math.PI);
+      d += (x === 0 ? 'M' : 'L') + x + ',' + y.toFixed(1);
+    }
+    return d;
+  }
+  const seg = w / cyc;
+  if (type === 'triangle') {
+    let d = 'M0,' + mid;
+    for (let i = 0; i < cyc; i++) {
+      const o = i * seg;
+      d += ' L' + (o + seg * 0.25) + ',' + (mid - amp) + ' L' + (o + seg * 0.75) + ',' + (mid + amp) + ' L' + (o + seg) + ',' + mid;
+    }
+    return d;
+  }
+  if (type === 'sawtooth') {
+    let d = 'M0,' + (mid + amp);
+    for (let i = 0; i < cyc; i++) {
+      const o = i * seg;
+      d += ' L' + (o + seg) + ',' + (mid - amp) + ' L' + (o + seg) + ',' + (mid + amp);
+    }
+    return d;
+  }
+  let d = 'M0,' + (mid - amp);
+  for (let i = 0; i < cyc; i++) {
+    const o = i * seg;
+    d += ' L' + (o + seg / 2) + ',' + (mid - amp) + ' L' + (o + seg / 2) + ',' + (mid + amp) + ' L' + (o + seg) + ',' + (mid + amp);
+    d += ' L' + (o + seg) + ',' + (mid - amp);
+  }
+  return d;
+}
+let waveIndex = 2;  // 初期値: ノコギリ波（モジュレーションの効果が分かりやすい）
+const waveRow = document.getElementById('waveRow');
+const waveDesc = document.getElementById('waveDesc');
+waves.forEach((wv, i) => {
+  const b = document.createElement('button');
+  b.className = 'wave-btn';
+  b.setAttribute('aria-pressed', i === waveIndex ? 'true' : 'false');
+  b.setAttribute('aria-label', wv.jp);
+  b.innerHTML =
+    '<svg width="88" height="32" viewBox="0 0 88 32" aria-hidden="true">' +
+    '<path d="' + wavePath(wv.type) + '" fill="none" stroke="#5C6270" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>' +
+    '<span class="wname">' + wv.jp + '</span>';
+  b.addEventListener('click', () => {
+    waveIndex = i;
+    waveRow.querySelectorAll('.wave-btn').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true');
+    waveDesc.innerHTML = wv.desc;
+  });
+  waveRow.appendChild(b);
+});
+waveDesc.innerHTML = waves[waveIndex].desc;
+
+// =====================================================================
+// ② モジュレーション
+// =====================================================================
+const modDepth = document.getElementById('modDepth');
+const modRate = document.getElementById('modRate');
+const modVal = document.getElementById('modVal');
+const rateVal = document.getElementById('rateVal');
+const modToggle = document.getElementById('modToggle');
+const lfoCaption = document.getElementById('lfoCaption');
+let drone = null;
+
+const destRow = document.getElementById('destRow');
+const destInfo = {
+  pitch:  { cap: 'LFO波形 → 音程を揺らしている（ビブラート）' },
+  amp:    { cap: 'LFO波形 → 音量を揺らしている（トレモロ）' },
+  filter: { cap: 'LFO波形 → フィルターを揺らしている（ワウ）' },
+};
+destRow.querySelectorAll('.dest').forEach(btn => {
+  btn.addEventListener('click', () => {
+    destRow.querySelectorAll('.dest').forEach(b => b.setAttribute('aria-pressed', 'false'));
+    btn.setAttribute('aria-pressed', 'true');
+    destination = btn.dataset.dest;
+    lfoCaption.textContent = destInfo[destination].cap;
+    if (AC) applyDepth();
+  });
+});
+
+function lfoRate() { return Math.pow(200, parseFloat(modRate.value)); }
+function fmtRate(r) { return (r < 20 ? r.toFixed(1) : Math.round(r)) + ' Hz' + (r >= 30 ? '（FM領域）' : ''); }
+modRate.addEventListener('input', () => {
+  const r = lfoRate();
+  rateVal.textContent = fmtRate(r);
+  if (lfo) lfo.frequency.setTargetAtTime(r, AC.currentTime, 0.02);
+});
+modDepth.addEventListener('input', () => {
+  modVal.textContent = modDepth.value;
+  if (AC) applyDepth();
+});
+
+modToggle.addEventListener('click', () => {
+  ensureAudio();
+  if (!drone) {
+    drone = makeVoice(440, waves[waveIndex].type);
+    drone.env.gain.setTargetAtTime(0.9, AC.currentTime, 0.02);
+    modToggle.setAttribute('aria-pressed', 'true');
+  } else {
+    drone.rel.gain.setTargetAtTime(0, AC.currentTime, 0.04);
+    killVoice(drone, AC.currentTime + 0.5);
+    drone = null;
+    modToggle.setAttribute('aria-pressed', 'false');
+  }
+});
+
+const lfoCv = document.getElementById('lfoCanvas');
+const lfoCtx = lfoCv.getContext('2d');
+let lfoPhase = 0, lastT = performance.now();
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function anySoundOn() { return drone !== null || Object.keys(active).length > 0; }
+function drawLFO() {
+  const w = lfoCv.width, h = lfoCv.height;
+  lfoCtx.clearRect(0, 0, w, h);
+  lfoCtx.strokeStyle = '#D8DCE4';
+  lfoCtx.beginPath(); lfoCtx.moveTo(0, h / 2); lfoCtx.lineTo(w, h / 2); lfoCtx.stroke();
+  const depth = parseInt(modDepth.value) / 127;
+  const amp = depth * (h / 2 - 14);
+  const cyc = Math.min(lfoRate() / 2.2, 48);
+  lfoCtx.strokeStyle = '#0D9488';
+  lfoCtx.lineWidth = 4; lfoCtx.lineCap = 'round';
+  lfoCtx.beginPath();
+  for (let x = 0; x <= w; x += 2) {
+    const y = h / 2 - amp * Math.sin((x / w) * cyc * 2 * Math.PI + lfoPhase);
+    x === 0 ? lfoCtx.moveTo(x, y) : lfoCtx.lineTo(x, y);
+  }
+  lfoCtx.stroke();
+}
+function tick(t) {
+  if (anySoundOn() && !reduceMotion) lfoPhase += (t - lastT) / 1000 * Math.min(lfoRate(), 15) * 2 * Math.PI * 0.4;
+  lastT = t;
+  drawLFO();
+  drawEnv();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// =====================================================================
+// ③ ADSR
+// =====================================================================
+const sliders = {
+  a: document.getElementById('aSlider'), d: document.getElementById('dSlider'),
+  s: document.getElementById('sSlider'), r: document.getElementById('rSlider'),
+};
+const vals = {
+  a: document.getElementById('aVal'), d: document.getElementById('dVal'),
+  s: document.getElementById('sVal'), r: document.getElementById('rVal'),
+};
+function adsr() {
+  return {
+    a: parseInt(sliders.a.value) / 1000,
+    d: parseInt(sliders.d.value) / 1000,
+    s: parseInt(sliders.s.value) / 127,
+    r: parseInt(sliders.r.value) / 1000,
+  };
+}
+Object.keys(sliders).forEach(k => {
+  sliders[k].addEventListener('input', () => {
+    vals[k].textContent = k === 's' ? sliders.s.value : sliders[k].value + ' ms';
+    drawEnv();
+  });
+});
+
+const envCv = document.getElementById('envCanvas');
+const envCtx = envCv.getContext('2d');
+let disp = null;
+
+function envGeom() {
+  const { a, d, s, r } = adsr();
+  const w = envCv.width, h = envCv.height, pad = 34;
+  const hold = 0.8;
+  const total = a + d + hold + r;
+  const X = (t) => pad + (t / total) * (w - pad - 16);
+  const Y = (lv) => (h - pad) - lv * (h - pad - 20);
+  return { a, d, s, r, w, h, pad, hold, total, X, Y };
+}
+function markerState(now) {
+  if (!disp) return null;
+  const g = envGeom();
+  if (!disp.released) {
+    const e = now - disp.tOn;
+    if (e < g.a) return { x: g.X(e), y: g.Y(e / g.a), phase: 'Attack' };
+    if (e < g.a + g.d) {
+      const p = (e - g.a) / g.d;
+      return { x: g.X(e), y: g.Y(1 - (1 - g.s) * p), phase: 'Decay' };
+    }
+    const es = e - g.a - g.d;
+    const frac = Math.min(es / (es + 1.2), 0.95);
+    return { x: g.X(g.a + g.d + frac * g.hold), y: g.Y(g.s), phase: 'Sustain' };
+  }
+  const rr = Math.max(disp.rRel, 0.03);
+  const p = Math.min((now - disp.tRel) / rr, 1);
+  if (p >= 1) { disp = null; return null; }
+  const g2 = envGeom();
+  return {
+    x: disp.xRel + (g2.X(g2.total) - disp.xRel) * p,
+    y: disp.yRel + (g2.Y(0) - disp.yRel) * p,
+    phase: 'Release',
+  };
+}
+function drawEnv() {
+  const g = envGeom();
+  const { w, h, pad } = g;
+  envCtx.clearRect(0, 0, w, h);
+  envCtx.strokeStyle = '#6B7280'; envCtx.lineWidth = 2;
+  envCtx.beginPath(); envCtx.moveTo(pad, 10); envCtx.lineTo(pad, h - pad); envCtx.lineTo(w - 8, h - pad); envCtx.stroke();
+  const susY = g.Y(g.s);
+  envCtx.strokeStyle = '#D97706'; envCtx.setLineDash([6, 6]); envCtx.lineWidth = 1.5;
+  envCtx.beginPath(); envCtx.moveTo(pad, susY); envCtx.lineTo(g.X(g.a + g.d + g.hold), susY); envCtx.stroke();
+  envCtx.setLineDash([]);
+  envCtx.strokeStyle = '#0D9488'; envCtx.lineWidth = 5; envCtx.lineJoin = 'round'; envCtx.lineCap = 'round';
+  envCtx.beginPath();
+  envCtx.moveTo(g.X(0), g.Y(0));
+  envCtx.lineTo(g.X(g.a), g.Y(1));
+  envCtx.lineTo(g.X(g.a + g.d), susY);
+  envCtx.lineTo(g.X(g.a + g.d + g.hold), susY);
+  envCtx.lineTo(g.X(g.total), g.Y(0));
+  envCtx.stroke();
+  envCtx.fillStyle = '#1F2430'; envCtx.font = 'bold 20px Arial'; envCtx.textAlign = 'center';
+  envCtx.fillText('A', g.X(g.a / 2), h - pad - 8);
+  envCtx.fillText('D', g.X(g.a + g.d / 2), h - pad - 8);
+  envCtx.fillText('S', g.X(g.a + g.d + g.hold / 2), h - pad - 8);
+  envCtx.fillText('R', g.X(g.a + g.d + g.hold + g.r / 2), h - pad - 8);
+  envCtx.fillStyle = '#D97706';
+  envCtx.beginPath(); envCtx.arc(g.X(0), g.Y(0), 6, 0, 7); envCtx.fill();
+  envCtx.beginPath(); envCtx.arc(g.X(g.a + g.d + g.hold), susY, 6, 0, 7); envCtx.fill();
+
+  const m = (AC && disp) ? markerState(AC.currentTime) : null;
+  if (m) {
+    envCtx.strokeStyle = 'rgba(217, 119, 6, .35)'; envCtx.lineWidth = 2;
+    envCtx.beginPath(); envCtx.moveTo(m.x, h - pad); envCtx.lineTo(m.x, m.y); envCtx.stroke();
+    envCtx.beginPath(); envCtx.arc(m.x, m.y, 9, 0, 7);
+    envCtx.fillStyle = '#D97706'; envCtx.fill();
+    envCtx.lineWidth = 3; envCtx.strokeStyle = '#fff'; envCtx.stroke();
+    envCtx.fillStyle = '#0D9488'; envCtx.font = 'bold 18px Arial'; envCtx.textAlign = 'right';
+    envCtx.fillText('▶ ' + m.phase, w - 14, 26);
+  }
+}
+drawEnv();
+
+// =====================================================================
+// 鍵盤（①と③で共有）
+// =====================================================================
+const whiteKeys = [
+  { note: 60, ch: 'A' }, { note: 62, ch: 'S' }, { note: 64, ch: 'D' }, { note: 65, ch: 'F' },
+  { note: 67, ch: 'G' }, { note: 69, ch: 'H' }, { note: 71, ch: 'J' }, { note: 72, ch: 'K' },
+];
+const blackKeys = [
+  { note: 61, ch: 'W', pos: 1 }, { note: 63, ch: 'E', pos: 2 },
+  { note: 66, ch: 'T', pos: 4 }, { note: 68, ch: 'Y', pos: 5 }, { note: 70, ch: 'U', pos: 6 },
+];
+const keyToNote = {};
+const keyEls = {};
+const active = {};
+
+function keyMark(n, on) { (keyEls[n] || []).forEach(el => el.classList.toggle('down', on)); }
+function wireKey(el, n) {
+  const down = () => noteOn(n);
+  const up = () => noteOff(n);
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); down(); });
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointerleave', up);
+  el.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); down(); } });
+  el.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') up(); });
+}
+function buildKeyboard(container) {
+  const whiteRow = document.createElement('div');
+  whiteRow.className = 'white-row';
+  container.appendChild(whiteRow);
+  whiteKeys.forEach(({ note, ch }) => {
+    keyToNote[ch.toLowerCase()] = note;
+    const k = document.createElement('div');
+    k.className = 'key'; k.tabIndex = 0;
+    k.setAttribute('role', 'button');
+    k.setAttribute('aria-label', 'ノート' + note + '（キー ' + ch + '）');
+    k.innerHTML = '<span class="kc">' + ch + '</span><span class="kn">' + note + '</span>';
+    (keyEls[note] = keyEls[note] || []).push(k);
+    wireKey(k, note);
+    whiteRow.appendChild(k);
+  });
+  blackKeys.forEach(({ note, ch, pos }) => {
+    keyToNote[ch.toLowerCase()] = note;
+    const k = document.createElement('div');
+    k.className = 'key black'; k.tabIndex = 0;
+    k.setAttribute('role', 'button');
+    k.setAttribute('aria-label', 'ノート' + note + '（キー ' + ch + '）');
+    k.style.left = 'calc(' + (pos * 12.5) + '% - 4.25%)';
+    k.innerHTML = '<span class="kc">' + ch + '</span><span class="kn">' + note + '</span>';
+    (keyEls[note] = keyEls[note] || []).push(k);
+    wireKey(k, note);
+    container.appendChild(k);
+  });
+}
+buildKeyboard(document.getElementById('kbd'));
+buildKeyboard(document.getElementById('kbd2'));
+
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  const t = e.target;
+  if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(t.type)))) return;
+  const n = keyToNote[e.key.toLowerCase()];
+  if (n !== undefined) { e.preventDefault(); noteOn(n); }
+});
+document.addEventListener('keyup', (e) => {
+  const n = keyToNote[e.key.toLowerCase()];
+  if (n !== undefined) noteOff(n);
+});
+window.addEventListener('blur', () => { Object.keys(active).forEach(n => noteOff(parseInt(n))); });
+
+function midiToFreq(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+function noteOn(n) {
+  if (active[n]) return;
+  ensureAudio();
+  const { a, d, s } = adsr();
+  const v = makeVoice(midiToFreq(n), waves[waveIndex].type);
+  const t = AC.currentTime;
+  v.env.gain.setValueAtTime(0.0001, t);
+  v.env.gain.linearRampToValueAtTime(1, t + a);
+  v.env.gain.setTargetAtTime(Math.max(s, 0.0001), t + a, Math.max(d / 3, 0.005));
+  active[n] = v;
+  disp = { note: n, tOn: t, released: false };
+  keyMark(n, true);
+}
+function noteOff(n) {
+  const v = active[n];
+  if (!v) return;
+  const { r } = adsr();
+  const t = AC.currentTime;
+  const tau = Math.max(r / 4, 0.015);
+  v.rel.gain.setTargetAtTime(0, t, tau);
+  killVoice(v, t + tau * 8 + 0.1);
+  if (disp && disp.note === n && !disp.released) {
+    const m = markerState(t);
+    if (m) {
+      disp.released = true;
+      disp.tRel = t;
+      disp.xRel = m.x;
+      disp.yRel = m.y;
+      disp.rRel = r;
+    } else {
+      disp = null;
+    }
+  }
+  delete active[n];
+  keyMark(n, false);
+}
+</script>
+</body>
+</html>
