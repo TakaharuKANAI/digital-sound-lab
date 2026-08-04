@@ -94,7 +94,10 @@ void setFilter(float pos) {
 
 // ---------------------------------------------------------------- audio task
 void audioTask(void*) {
-  static int16_t out[2][BLOCK];
+  // スピーカーのキュー（最大2ブロック）が参照中のバッファに書き込まないよう
+  // 4枚のリングで回す（2枚だと再生中のバッファを上書きしてノイズになる）
+  constexpr int NBUF = 4;
+  static int16_t out[NBUF][BLOCK];
   int bufIdx = 0;
   for (;;) {
     if (!playing) { vTaskDelay(pdMS_TO_TICKS(10)); continue; }
@@ -121,7 +124,7 @@ void audioTask(void*) {
       if (++playPos >= s.len) { playPos = 0; loopCount++; }
     }
     while (!M5.Speaker.playRaw(dst, BLOCK, SR, false, 1, 0)) vTaskDelay(1);
-    bufIdx ^= 1;
+    bufIdx = (bufIdx + 1) % NBUF;
   }
 }
 
@@ -193,6 +196,14 @@ void drawAll() {
 void setup() {
   auto cfg = M5.config();
   M5.begin(cfg);
+  {
+    // 出力を22.05kHzの整数倍にして再サンプリングの粗れを抑える
+    M5.Speaker.end();
+    auto spk = M5.Speaker.config();
+    spk.sample_rate = 44100;
+    M5.Speaker.config(spk);
+    M5.Speaker.begin();
+  }
   M5.Speaker.setVolume(190);
   for (int t = 0; t < NTRK; t++) trkColor[t] = M5.Display.color565(TRK_RGB[t][0], TRK_RGB[t][1], TRK_RGB[t][2]);
 
