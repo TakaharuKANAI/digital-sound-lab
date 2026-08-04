@@ -99,6 +99,7 @@
 
 <p class="note-text"><b>「M」でトラックをミュート、「STEM(.wav)」でそのトラックをステム（パート別に焼き固めたWAV）として書き出し。</b>ミュートで抜き差しする遊びが「ステム方式」のインタラクション、STEMボタンの出力を実作品で再生するのがその実装。薄いマス＝ゴーストノート（弱打）、ハイハットの「O」＝オープンハット、「R」＝32分ロール。<b>4周ごとにブレイク（ドラム抜き）→スネアの煽り→復帰</b>のアレンジが自動で入る。</p>
 <button id="mixExport" style="margin-top:4px;">⬇ ミックスを書き出し（全ステムを混ぜた完成形・4周分）</button>
+<label style="display:block; margin-top:10px; font-size:13px; color:var(--muted);"><input type="checkbox" id="loopMode"> <b style="color:var(--ink);">M5Stack用ループ書き出しモード</b> ── ONにすると各STEM/ミックスボタンが「2小節ループ・22.05kHz・モノラル」のWAVを書き出す（ファイル名は <span style="font-family:var(--mono);">techno_kick.wav</span> 形式。マイコン移植の手順はリポジトリの <span style="font-family:var(--mono);">m5stack/README.md</span> 参照）</label>
 
 <pre id="code"></pre>
 <p class="note-text"><b>「無難なBGM」から抜けるための処方：</b>①グリッドを16分に上げる（8分グリッドではファンクは物理的に作れない）、②裏拍にベースを置く＝シンコペーション、③サイドチェイン＝キックの瞬間にパッドとベースを凹ませて「ポンピング」を作る、④引き算のアレンジ＝4周目にドラムを抜いて緊張→復帰で解放、⑤和音を三和音でなくm9やsus系で積む。</p>
@@ -612,8 +613,10 @@ async function renderAndDownload(ids, fileBase, btn) {
   btn.textContent = '書き出し中…';
   try {
     const sg = song();
+    const loopMode = document.getElementById('loopMode').checked;
     const loopSec = 2 * 4 * 60 / sg.bpm;             // 2小節
-    const dur = loopSec * 4 + 2.2;                   // 4周（ブレイク込み）＋余韻
+    // 通常: 4周（ブレイク込み）＋余韻 / ループ用: 3周レンダーして2周目だけ切り出す
+    const dur = loopMode ? loopSec * 3 + 0.1 : loopSec * 4 + 2.2;
     const pats = sg.patterns;
     const rendered = await Tone.Offline(async ({ transport }) => {
       const bus = makeBus();
@@ -631,12 +634,21 @@ async function renderAndDownload(ids, fileBase, btn) {
       transport.swing = sg.swing;
       transport.swingSubdivision = '16n';
       transport.start(0.05);
-    }, dur);
-    const blob = audioBufferToWav(rendered.get());
+    }, dur, loopMode ? 1 : 2, loopMode ? 22050 : undefined);
+    let buffer = rendered.get();
+    if (loopMode) {
+      // 2周目だけ切り出す（1周目のリバーブ・ディレイ尾が乗った状態なのでループ境界が自然につながる）
+      const sr = buffer.sampleRate;
+      const start = Math.round((0.05 + loopSec) * sr);
+      const len = Math.round(loopSec * sr);
+      const data = buffer.getChannelData(0).slice(start, start + len);
+      buffer = { numberOfChannels: 1, sampleRate: sr, length: len, getChannelData: () => data };
+    }
+    const blob = audioBufferToWav(buffer);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = fileBase + '_' + sg.key + '_' + sg.bpm + 'bpm.wav';
+    a.download = loopMode ? sg.id + '_' + fileBase + '.wav' : fileBase + '_' + sg.key + '_' + sg.bpm + 'bpm.wav';
     document.body.appendChild(a);
     a.click();
     a.remove();
