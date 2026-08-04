@@ -1,18 +1,19 @@
 // track_player.ino — track.html の M5Stack CoreS3 移植（方式A: ステム再生方式）
 //
-// SDカードの /stems/<song>_<part>.wav（2小節ループ・22.05kHz・16bit・モノラル）を
-// 全曲PSRAMへ読み込み、6トラックをサンプル単位で加算ミックスして再生する。
+// ステムWAV（2小節ループ・22.05kHz・16bit・モノラル）を stems_data.h として
+// ファームウェアに埋め込み、6トラックをサンプル単位で加算ミックスして再生する。
+// stems_data.h は gen_stems_header.py で生成する（SDカード不要）。
 //   - 行頭タップ = ミュート抜き差し
 //   - 下部スライダー = マスターLPF（本家パフォーマンスFX①）
 //   - 上部タブ = 曲切り替え / ▶ = 再生・停止
 //   - 4周目 = ハイハット・スネアを自動で抜くブレイク（本家の簡易再現）
 //
-// 環境: Arduino IDE / ボード M5CoreS3 / PSRAM: OPI PSRAM / ライブラリ M5Unified
-// ※実機未検証のたたき台
+// 環境: Arduino IDE / ボード M5CoreS3 / ライブラリ M5Unified
+// アプリ領域6MBの partitions.csv を同梱（埋め込みステム約3MBのため）
 
 #include <M5Unified.h>
-#include <SD.h>
 #include <math.h>
+#include "stems_data.h"
 
 constexpr uint32_t SR    = 22050;
 constexpr int      BLOCK = 128;
@@ -60,7 +61,7 @@ const char* PATTERN[NSONG][NTRK] = {
 };
 
 struct Song {
-  int16_t* stem[NTRK] = { nullptr };
+  const int16_t* stem[NTRK] = { nullptr };
   uint32_t len = 0;                    // ループ長（サンプル数）
 };
 Song songs[NSONG];
@@ -89,40 +90,6 @@ void setFilter(float pos) {
   b2c = b0c;
   a1c = (-2.0f * cw) / a0;
   a2c = (1.0f - alpha) / a0;
-}
-
-// ---------------------------------------------------------------- WAV loader
-int16_t* loadWav(const char* path, uint32_t* outLen) {
-  File f = SD.open(path);
-  if (!f) return nullptr;
-  uint8_t h[12];
-  if (f.read(h, 12) != 12 || memcmp(h, "RIFF", 4) || memcmp(h + 8, "WAVE", 4)) { f.close(); return nullptr; }
-  uint16_t ch = 0, bits = 0;
-  uint32_t rate = 0;
-  int16_t* data = nullptr;
-  while (f.available()) {
-    uint8_t ck[8];
-    if (f.read(ck, 8) != 8) break;
-    uint32_t sz = ck[4] | (ck[5] << 8) | (ck[6] << 16) | ((uint32_t)ck[7] << 24);
-    if (!memcmp(ck, "fmt ", 4)) {
-      uint8_t fmt[16];
-      f.read(fmt, 16);
-      ch   = fmt[2] | (fmt[3] << 8);
-      rate = fmt[4] | (fmt[5] << 8) | (fmt[6] << 16) | ((uint32_t)fmt[7] << 24);
-      bits = fmt[14] | (fmt[15] << 8);
-      if (sz > 16) f.seek(f.position() + (sz - 16));
-    } else if (!memcmp(ck, "data", 4)) {
-      if (ch != 1 || bits != 16 || rate != SR) { f.close(); return nullptr; }   // ループ書き出しモードで書き出したWAVのみ対応
-      data = (int16_t*)ps_malloc(sz);
-      if (!data || f.read((uint8_t*)data, sz) != (int)sz) { free(data); data = nullptr; }
-      else *outLen = sz / 2;
-      break;
-    } else {
-      f.seek(f.position() + sz + (sz & 1));
-    }
-  }
-  f.close();
-  return data;
 }
 
 // ---------------------------------------------------------------- audio task
@@ -230,30 +197,13 @@ void setup() {
   for (int t = 0; t < NTRK; t++) trkColor[t] = M5.Display.color565(TRK_RGB[t][0], TRK_RGB[t][1], TRK_RGB[t][2]);
 
   M5.Display.setTextSize(1);
-  M5.Display.fillScreen(TFT_WHITE);
-  M5.Display.setTextColor(M5.Display.color565(31, 36, 48));
-  M5.Display.setTextDatum(top_left);
-  M5.Display.drawString("Loading /stems ...", 8, 8);
 
-  while (!SD.begin(GPIO_NUM_4, SPI, 25000000)) {   // CoreS3: SD CS = GPIO4
-    M5.Display.drawString("SD card not found. Insert & reset.", 8, 24);
-    delay(500);
-  }
-
-  int missing = 0;
+  // 埋め込みステム（stems_data.h）をテーブルに展開
   for (int s = 0; s < NSONG; s++) {
     for (int t = 0; t < NTRK; t++) {
-      char path[48];
-      snprintf(path, sizeof(path), "/stems/%s_%s.wav", SONG_ID[s], PART[t]);
-      uint32_t len = 0;
-      songs[s].stem[t] = loadWav(path, &len);
-      if (songs[s].stem[t]) { if (len > songs[s].len) songs[s].len = len; }
-      else missing++;
+      songs[s].stem[t] = STEMS[s][t].data;
+      if (STEMS[s][t].len > songs[s].len) songs[s].len = STEMS[s][t].len;
     }
-  }
-  if (missing) {
-    M5.Display.drawString("Missing/invalid stems: " + String(missing), 8, 24);
-    delay(2000);
   }
 
   setFilter(cutPos);

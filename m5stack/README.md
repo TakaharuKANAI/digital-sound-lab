@@ -7,40 +7,36 @@ Tone.js のシンセ・エフェクトをマイコンで再現するのではな
 
 ## 必要なもの
 
-- M5Stack CoreS3（または CoreS3 SE。スピーカー・タッチパネル・SDスロット必須）
-- microSDカード
-- Arduino IDE（ボード: M5CoreS3、PSRAM: OPI PSRAM 有効）＋ ライブラリ `M5Unified`
+- M5Stack CoreS3（または CoreS3 SE。スピーカー・タッチパネル必須。SDカードは不要）
+- Arduino IDE または arduino-cli（ボード: M5CoreS3）＋ ライブラリ `M5Unified`
+
+## 仕組み
+
+ステムWAVは `gen_stems_header.py` で C ヘッダ（`stems_data.h`、約3.5MBのサンプルデータ）に
+変換し、**ファームウェアに埋め込み**ます。埋め込み後のバイナリは約4MBになるため、
+アプリ領域6MBのカスタムパーティション（同梱の `partitions.csv`）を使います。
 
 ## 手順
 
-### 1. ブラウザでステムを書き出す
+### 1. ステムを用意する
 
-1. [track.html](https://takaharukanai.github.io/digital-sound-lab/track.html) を開く
-2. ページ下部の **「M5Stack用ループ書き出しモード」** にチェックを入れる
-3. 曲を選び、6トラックそれぞれの **STEM(.wav)** ボタンを押す
-   （`techno_kick.wav` のような名前で 2小節ループ・22.05kHz・16bit・モノラル の WAV が落ちる）
-4. 3曲すべてで繰り返す（6トラック × 3曲 = 18ファイル。ブラウザが連続ダウンロードの
-   許可を求めたら許可する）
+書き出し済みのステム18本が `m5stack/stems/` に入っているので、曲データを変えない限り
+この手順は不要。曲を変えたときは [track.html](https://takaharukanai.github.io/digital-sound-lab/track.html)
+の **「M5Stack用ループ書き出しモード」** にチェックを入れ、各曲で6トラックぶんの
+**STEM(.wav)** ボタンを押して書き出し、`m5stack/stems/` を差し替える
+（`techno_kick.wav` 形式・2小節ループ・22.05kHz・16bit・モノラル）。
 
-### 2. SDカードに配置
+### 2. ヘッダを生成してビルド・書き込み
 
-SDカード直下に `stems` フォルダを作り、18ファイルをそのまま入れる:
-
-```
-/stems/techno_kick.wav
-/stems/techno_snare.wav
-/stems/techno_hihat.wav
-/stems/techno_bass.wav
-/stems/techno_lead.wav
-/stems/techno_pad.wav
-/stems/lofi_….wav
-/stems/phonk_….wav
+```bash
+cd m5stack/track_player
+python3 gen_stems_header.py ../stems
+arduino-cli compile -b m5stack:esp32:m5stack_cores3:PartitionScheme=custom .
+arduino-cli upload  -b m5stack:esp32:m5stack_cores3:PartitionScheme=custom -p <シリアルポート> .
 ```
 
-### 3. スケッチを書き込む
-
-`track_player/track_player.ino` を Arduino IDE で開いて CoreS3 に書き込み。
-起動時に全ステム（約3MB）を PSRAM に読み込みます。
+Arduino IDE の場合は「ツール → Partition Scheme → Custom」を選択
+（スケッチフォルダの `partitions.csv` が使われる）。
 
 ## 操作
 
@@ -62,7 +58,6 @@ SDカード直下に `stems` フォルダを作り、18ファイルをそのま�
 
 - Grove端子にボリューム/距離センサーを繋ぎ、読み値を `cutPos`（0.0〜1.0）に
   入れれば「センサーで質感を演奏する」インタラクションになる
-- 曲を差し替えたいときは track.html の `SONGS` を編集 → ループ書き出し → SD更新
-
-> **注意**: スケッチは実機未検証のたたき台です。M5Unified のバージョンによっては
-> `playRaw` まわりの調整が必要になる場合があります。
+- 曲を差し替えたいときは track.html の `SONGS` を編集 → ループ書き出し →
+  `gen_stems_header.py` → 再ビルド（表示パターンを変えた場合はスケッチの
+  `PATTERN` も合わせて更新する）
