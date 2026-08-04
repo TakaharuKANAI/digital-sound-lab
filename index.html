@@ -9,6 +9,7 @@
   :root {
     --ink: #1F2430; --muted: #5C6270; --card: #F2F4F8; --border: #D8DCE4;
     --midi: #2563EB; --synth: #0D9488; --smp: #B85348;
+    --scale: #7C3AED; --track: #0F766E;
     --mono: "SFMono-Regular", "Consolas", "Menlo", monospace;
     --jp: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
   }
@@ -44,6 +45,12 @@
   .how .flow b.f1 { border-color: var(--midi); color: var(--midi); }
   .how .flow b.f2 { border-color: var(--synth); color: var(--synth); }
   .how .flow b.f3 { border-color: var(--smp); color: var(--smp); }
+
+  .extra { margin-top: 56px; }
+  .extra > h2 { font-size: 22px; font-weight: 800; }
+  .extra .sub { font-size: 14px; color: var(--muted); margin-top: 6px; }
+  .extra .cards { grid-template-columns: repeat(2, 1fr); margin-top: 20px; }
+  @media (max-width: 900px) { .extra .cards { grid-template-columns: 1fr; } }
 
   footer { border-top: 1px solid var(--border); margin-top: 64px; padding: 22px 24px 40px; font-size: 12.5px; color: var(--muted); max-width: 1080px; margin-left: auto; margin-right: auto; }
 </style>
@@ -92,6 +99,29 @@
       <b class="f3">サンプラー＝録音を読み出し</b> <span>→</span>
       <b>共通のシグナルチェーン</b> <span>→</span>
       <b>出力 🔊</b>
+    </div>
+  </div>
+
+  <div class="extra">
+    <h2>スケールやトラックについて学ぶ</h2>
+    <p class="sub">3つのラボを補う発展編。音を選ぶ「スケール」と、曲を組み立てる「トラック」を体験します。</p>
+    <div class="cards">
+      <a class="card" href="./scale.html" style="--c: var(--scale);">
+        <span class="num">EX 01</span>
+        <h2>スケールを触って理解する</h2>
+        <span class="en">pentatonic / drone / blue note</span>
+        <p>「適当に弾いても気持ちいい」音階のカタログ。ペンタトニック・ヨナ抜き・琉球・都節・ホールトーンをパッドで演奏し、ルート音ドローンが調性の重力を作る魔法を体験します。</p>
+        <div class="topics"><span>ペンタトニック</span><span>ブルーノート</span><span>ドローン</span><span>民族音階</span></div>
+        <span class="go">教材を開く →</span>
+      </a>
+      <a class="card" href="./track.html" style="--c: var(--track);">
+        <span class="num">EX 02</span>
+        <h2>トラックを触って理解する</h2>
+        <span class="en">track / phrase / stem</span>
+        <p>Tone.jsによるマルチトラックシーケンサー。テクノ・ローファイ・フォンクの3曲を切り替え、トラックのミュートで抜き差ししながら、フレーズ・ステム・サイドチェインの関係を学びます。</p>
+        <div class="topics"><span>トラック</span><span>ステム</span><span>サイドチェイン</span><span>Tone.js</span></div>
+        <span class="go">教材を開く →</span>
+      </a>
     </div>
   </div>
 </main>

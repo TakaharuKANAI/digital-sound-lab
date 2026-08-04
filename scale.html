@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スケールを触って理解する — 適当に弾いても気持ちいい音階</title>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --ink: #1F2430;
+    --muted: #5C6270;
+    --card: #F5F3FB;
+    --border: #DDD8EA;
+    --accent: #7C3AED;
+    --accent-soft: #EDE9FE;
+    --orange: #D97706;
+    --mono: "SFMono-Regular", "Consolas", "Menlo", monospace;
+    --jp: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  body { font-family: var(--jp); color: var(--ink); background: var(--bg); line-height: 1.7; padding-bottom: 48px; }
+  main { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero { padding: 64px 24px 36px; max-width: 1080px; margin: 0 auto; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; color: var(--accent); text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 800; line-height: 1.3; }
+  h1 .accent { color: var(--accent); }
+  .lede { margin-top: 16px; font-size: 16px; color: var(--muted); max-width: 46em; }
+  .lede strong { color: var(--ink); }
+
+  h2 { font-size: 20px; font-weight: 800; margin: 28px 0 10px; }
+  p.note { font-size: 13px; color: var(--muted); }
+  .kbd-hint { display: inline-block; margin-top: 10px; font-size: 12.5px; color: var(--muted); background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px; }
+  .kbd-hint b { font-family: var(--mono); color: var(--accent); letter-spacing: .12em; }
+
+  .demo { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-top: 8px; }
+
+  /* scale selector */
+  .scale-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  @media (max-width: 760px) { .scale-row { grid-template-columns: repeat(2, 1fr); } }
+  .scale-btn { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 10px 8px; text-align: center; cursor: pointer; font-family: var(--jp); }
+  .scale-btn .sn { font-size: 13px; font-weight: 800; color: var(--ink); display: block; }
+  .scale-btn .sd { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+  .scale-btn[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .scale-btn[aria-pressed="true"] .sn { color: var(--accent); }
+  button:focus-visible, .scale-btn:focus-visible, .pad:focus-visible, .pkey:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+
+  .scale-desc { margin-top: 14px; background: #fff; border: 2px solid var(--accent); border-radius: 12px; padding: 14px 18px; font-size: 13.5px; }
+  .scale-desc b { color: var(--accent); }
+  .scale-desc .tip { color: var(--orange); font-weight: 700; }
+
+  /* piano visualization */
+  .piano { position: relative; height: 150px; margin-top: 14px; }
+  .piano .white-row { display: flex; height: 100%; }
+  .pkey { border: 1px solid var(--border); background: #fff; flex: 1; border-radius: 0 0 8px 8px; cursor: pointer; position: relative; user-select: none; touch-action: none; }
+  .pkey .pn { position: absolute; bottom: 6px; left: 0; right: 0; text-align: center; font-family: var(--mono); font-size: 9px; color: #B6BAC6; }
+  .pkey.member { background: var(--accent-soft); border-color: var(--accent); }
+  .pkey.member .pn { color: var(--accent); font-weight: 700; }
+  .pkey.root { background: var(--accent); }
+  .pkey.root .pn { color: #fff; font-weight: 700; }
+  .pkey.blue-note { background: #FDE9D2; border-color: var(--orange); }
+  .pkey.blue-note .pn { color: var(--orange); font-weight: 700; }
+  .pkey.pdown { filter: brightness(0.85); }
+  .pkey.black { position: absolute; top: 0; width: 3.9%; height: 58%; background: #232634; border: 1px solid #14161f; border-radius: 0 0 6px 6px; z-index: 2; }
+  .pkey.black .pn { color: #7D8296; }
+  .pkey.black.member { background: #5B33B0; border-color: var(--accent); }
+  .pkey.black.member .pn { color: #E4D9FF; }
+  .pkey.black.root { background: var(--accent); }
+  .pkey.black.blue-note { background: var(--orange); border-color: var(--orange); }
+  .pkey.black.blue-note .pn { color: #fff; }
+  .legend2 { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+  .legend2 span { display: inline-flex; align-items: center; gap: 5px; }
+  .legend2 .sw { width: 13px; height: 13px; border-radius: 4px; border: 1px solid rgba(0,0,0,.15); display: inline-block; }
+
+  /* pads */
+  .pads { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; margin-top: 10px; }
+  @media (max-width: 560px) { .pads { grid-template-columns: repeat(4, 1fr); } }
+  .pad { border: 2px solid var(--border); border-radius: 10px; background: #fff; padding: 14px 4px 10px; text-align: center; cursor: pointer; user-select: none; touch-action: none; }
+  .pad .kc { font-family: var(--mono); font-size: 16px; font-weight: 800; color: var(--accent); display: block; }
+  .pad .nn { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .pad.pdown { background: var(--accent-soft); border-color: var(--accent); }
+  .pad.blue-pad { border-color: var(--orange); }
+  .pad.blue-pad .kc { color: var(--orange); }
+
+  button.toggle { font-family: var(--jp); font-size: 14px; font-weight: 700; padding: 10px 20px; border-radius: 10px; border: 2px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; margin-top: 14px; }
+  button.toggle[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:70;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid #D8DCE4;padding:9px 24px;font-family:sans-serif;font-size:13.5px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+  <a href="./index.html" style="font-weight:700;color:#1F2430;text-decoration:none;margin-right:8px;">🎛 触って理解するデジタル音源</a>
+  <a href="./midi.html" style="color:#2563EB;text-decoration:none;font-weight:400;opacity:.75;">01 MIDI</a>
+  <a href="./synth.html" style="color:#0D9488;text-decoration:none;font-weight:400;opacity:.75;">02 シンセ</a>
+  <a href="./sampler.html" style="color:#B85348;text-decoration:none;font-weight:400;opacity:.75;">03 サンプラー</a>
+  <a href="./scale.html" style="color:#7C3AED;text-decoration:none;font-weight:800;border-bottom:2.5px solid #7C3AED;">EX1 スケール</a>
+  <a href="./track.html" style="color:#0F766E;text-decoration:none;font-weight:400;opacity:.75;">EX2 トラック</a>
+</nav>
+
+<header class="hero">
+  <h1>スケールを<span class="accent">触って</span>理解する</h1>
+  <p class="lede">「適当に弾いても気持ちいい」音階のカタログ。安全な理由は<strong>半音のぶつかり（短2度）が存在しない、または管理されている</strong>から。スケールを選ぶと下のパッドが<strong>その音階の音だけ</strong>になるので、キーボードの <b style="font-family:var(--mono); color:var(--accent);">A S D F G H J K</b> をどう叩いても濁りません。仕上げに<strong>ルート音ドローン</strong>をONにすると、1本の低音が調性の重力を作る魔法も体験できます。</p>
+</header>
+
+<main>
+<div class="demo">
+  <h2 style="margin-top:0;">スケールを選ぶ</h2>
+  <div class="scale-row" id="scaleRow"></div>
+  <div class="scale-desc" id="scaleDesc"></div>
+
+  <h2>鍵盤の上でスケールを見る（クリックで音も鳴る）</h2>
+  <div class="piano" id="piano"></div>
+  <div class="legend2">
+    <span><span class="sw" style="background:var(--accent);"></span>ルート音（主音）</span>
+    <span><span class="sw" style="background:var(--accent-soft); border-color:var(--accent);"></span>スケールの構成音</span>
+    <span><span class="sw" style="background:#FDE9D2; border-color:var(--orange);"></span>ブルーノート</span>
+    <span><span class="sw" style="background:#fff;"></span>スケール外（クリックすると濁りが聴ける）</span>
+  </div>
+
+  <h2>スケール演奏パッド ── どう叩いても外れない</h2>
+  <div class="pads" id="pads"></div>
+  <span class="kbd-hint"><b>A S D F G H J K</b> ＝ スケールの1〜8音目（下から順）</span>
+  <br>
+  <button class="toggle" id="droneBtn" aria-pressed="false">◉ ルート音ドローン ON/OFF</button>
+  <p class="note" style="margin-top:10px;">ドローン＝ルート音の持続低音。これを敷くだけで、上でどう暴れてもすべて「その調の音楽」として聴こえる。スケール制限＋ドローンは、サウンドインスタレーションで最もコスパの高い調性設計。</p>
+</div>
+</main>
+
+<script>
+"use strict";
+// =====================================================================
+// スケール定義
+// =====================================================================
+const SCALES = [
+  {
+    id: 'majpenta', name: 'メジャーペンタトニック', disp: 'C D E G A',
+    rootPc: 0, notes: [60, 62, 64, 67, 69, 72, 74, 76], blue: [],
+    desc: '<b>C D E G A</b> ── 明るく開放的。蛍の光、アメイジング・グレイス。<span class="tip">ピアノの黒鍵だけを弾くとこれ（F#メジャーペンタ）になる</span>ので、「黒鍵だけで即興してごらん」は最強のデモ。上の鍵盤でスケール外の黒鍵を…と思ったら全部白鍵なのがこのスケール。',
+  },
+  {
+    id: 'minpenta', name: 'マイナーペンタトニック', disp: 'A C D E G',
+    rootPc: 9, notes: [57, 60, 62, 64, 67, 69, 72, 74], blue: [],
+    desc: '<b>A C D E G</b> ── ロック／ソウルの土台。<span class="tip">構成音はメジャーペンタと完全に同じで、重心（ルート）が違うだけ</span>。上の鍵盤表示をメジャーペンタと見比べると、光る鍵は同じでルートの位置だけ動いているのが分かる。',
+  },
+  {
+    id: 'yonanuki', name: 'ヨナ抜き音階', disp: 'ド レ ミ ソ ラ',
+    rootPc: 0, notes: [60, 62, 64, 67, 69, 72, 74, 76], blue: [],
+    desc: 'ドレミファソラシの<b>4（ファ）と7（シ）を抜く</b>とメジャーペンタと同一になる。つまり<span class="tip">ヨナ抜き＝日本の歌謡がペンタトニックに合流した地点</span>。演歌からJ-POP（パプリカ、紅蓮華のサビ）まで貫通する、日本人の耳の故郷。',
+  },
+  {
+    id: 'blues', name: 'ブルーススケール', disp: 'A C D E♭ E G',
+    rootPc: 9, notes: [57, 60, 62, 63, 64, 67, 69, 72], blue: [63],
+    desc: '<b>A C D E♭ E G</b> ── マイナーペンタ＋E♭（ブルーノート）。<span class="tip">この1音だけが「管理された濁り」</span>で、通過音的に触ると急に大人の味になる。ずっと押さえると濁るので、パッドではオレンジの4番（Fキー）を短く挟んで使ってみよう。',
+  },
+  {
+    id: 'ryukyu', name: '琉球音階', disp: 'C E F G B',
+    rootPc: 0, notes: [60, 64, 65, 67, 71, 72, 76, 77], blue: [],
+    desc: '<b>C E F G B</b> ── 一発で沖縄になる。半音を含む（E-F、B-C）が、<span class="tip">それ自体が様式なので破綻しない</span>。音階だけで文化的文脈を纏える実例その1。',
+  },
+  {
+    id: 'miyako', name: '都節（みやこぶし）音階', disp: 'E F A B C',
+    rootPc: 4, notes: [64, 65, 69, 71, 72, 76, 77, 81], blue: [],
+    desc: '<b>E F A B C</b> ── 陰旋法。和風・幽玄・ホラーにも。<span class="tip">琉球音階と並んで「音階だけで文化的文脈を纏える」実例その2</span>。同じ日本でも琉球と本土でこれだけ音階が違う、という比較も面白い。',
+  },
+  {
+    id: 'wholetone', name: 'ホールトーン', disp: 'C D E F# G# A#',
+    rootPc: 0, notes: [60, 62, 64, 66, 68, 70, 72, 74], blue: [],
+    desc: '<b>C D E F# G# A#</b> ── 全音のみで半音が1つもない。夢の中、水中、時間停止。ドビュッシー。<span class="tip">どこにも解決しない浮遊感</span>なので、環境音生成型のインスタレーションと好相性。ドローンを敷いてもなお浮くのが分かる。',
+  },
+];
+let scaleIndex = 0;
+
+// =====================================================================
+// WebAudio（クリックしないリリース分離型ボイス）
+// =====================================================================
+let AC = null, master = null;
+function ensureAudio() {
+  if (!AC) {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    master = AC.createGain();
+    master.gain.value = 0.22;
+    master.connect(AC.destination);
+  }
+  if (AC.state === 'suspended') AC.resume();
+}
+function midiToFreq(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+
+const activeVoices = {};   // midiNote → voice
+function voiceOn(n) {
+  if (activeVoices[n]) return;
+  ensureAudio();
+  const osc = AC.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.value = midiToFreq(n);
+  const filter = AC.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 3000;
+  const env = AC.createGain();
+  env.gain.value = 0.0001;
+  const rel = AC.createGain();
+  rel.gain.value = 1;
+  osc.connect(filter).connect(env).connect(rel).connect(master);
+  osc.start();
+  const t = AC.currentTime;
+  env.gain.setValueAtTime(0.0001, t);
+  env.gain.linearRampToValueAtTime(0.9, t + 0.006);
+  env.gain.setTargetAtTime(0.55, t + 0.006, 0.06);
+  activeVoices[n] = { osc, env, rel };
+}
+function voiceOff(n) {
+  const v = activeVoices[n];
+  if (!v) return;
+  const t = AC.currentTime;
+  v.rel.gain.setTargetAtTime(0, t, 0.09);      // リリース約0.35s
+  v.osc.stop(t + 0.9);
+  delete activeVoices[n];
+}
+
+// ドローン
+let drone = null;
+const droneBtn = document.getElementById('droneBtn');
+function droneNote() {
+  const sc = SCALES[scaleIndex];
+  // ルート音の低いオクターブ（36〜47の範囲に収める）
+  let n = sc.notes[0] - 24;
+  while (n < 33) n += 12;
+  return n;
+}
+function startDrone() {
+  ensureAudio();
+  const n = droneNote();
+  const osc = AC.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.value = midiToFreq(n);
+  const osc2 = AC.createOscillator();          // 1オクターブ上を薄く重ねる
+  osc2.type = 'sine';
+  osc2.frequency.value = midiToFreq(n + 12);
+  const g = AC.createGain();
+  g.gain.value = 0.0001;
+  const g2 = AC.createGain();
+  g2.gain.value = 0.35;
+  osc.connect(g);
+  osc2.connect(g2).connect(g);
+  g.connect(master);
+  osc.start(); osc2.start();
+  g.gain.setTargetAtTime(0.45, AC.currentTime, 0.4);
+  drone = { osc, osc2, g };
+}
+function stopDrone() {
+  if (!drone) return;
+  const d = drone;
+  drone = null;
+  d.g.gain.setTargetAtTime(0.0001, AC.currentTime, 0.15);
+  d.osc.stop(AC.currentTime + 1.2);
+  d.osc2.stop(AC.currentTime + 1.2);
+}
+droneBtn.addEventListener('click', () => {
+  if (drone) { stopDrone(); droneBtn.setAttribute('aria-pressed', 'false'); }
+  else { startDrone(); droneBtn.setAttribute('aria-pressed', 'true'); }
+});
+
+// =====================================================================
+// ピアノ表示（C4〜B5 の2オクターブ・クロマチック）
+// =====================================================================
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const piano = document.getElementById('piano');
+const pianoKeyEls = {};   // midi → el
+(function buildPiano() {
+  const whiteRow = document.createElement('div');
+  whiteRow.className = 'white-row';
+  piano.appendChild(whiteRow);
+  const whites = [];
+  for (let n = 60; n <= 83; n++) {
+    if ([1, 3, 6, 8, 10].includes(n % 12)) continue;
+    whites.push(n);
+  }
+  whites.forEach(n => {
+    const k = document.createElement('div');
+    k.className = 'pkey'; k.tabIndex = 0;
+    k.setAttribute('role', 'button');
+    k.setAttribute('aria-label', NOTE_NAMES[n % 12] + Math.floor(n / 12 - 1));
+    k.innerHTML = '<span class="pn">' + NOTE_NAMES[n % 12] + '</span>';
+    pianoKeyEls[n] = k;
+    wirePlayable(k, n);
+    whiteRow.appendChild(k);
+  });
+  const whiteW = 100 / whites.length;
+  for (let n = 60; n <= 83; n++) {
+    if (![1, 3, 6, 8, 10].includes(n % 12)) continue;
+    const belowWhiteIdx = whites.filter(w => w < n).length;   // 左隣までの白鍵数
+    const k = document.createElement('div');
+    k.className = 'pkey black'; k.tabIndex = 0;
+    k.setAttribute('role', 'button');
+    k.setAttribute('aria-label', NOTE_NAMES[n % 12] + Math.floor(n / 12 - 1));
+    k.style.left = 'calc(' + (belowWhiteIdx * whiteW) + '% - 1.95%)';
+    k.innerHTML = '<span class="pn">' + NOTE_NAMES[n % 12] + '</span>';
+    pianoKeyEls[n] = k;
+    wirePlayable(k, n);
+    piano.appendChild(k);
+  }
+})();
+
+function wirePlayable(el, n) {
+  const down = () => { el.classList.add('pdown'); voiceOn(n); };
+  const up = () => { el.classList.remove('pdown'); voiceOff(n); };
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); down(); });
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointerleave', up);
+  el.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); down(); } });
+  el.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') up(); });
+}
+
+// =====================================================================
+// スケール選択とパッド
+// =====================================================================
+const scaleRow = document.getElementById('scaleRow');
+const scaleDesc = document.getElementById('scaleDesc');
+const padsEl = document.getElementById('pads');
+const KEY_CHARS = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K'];
+let padNotes = [];          // 現在のパッド8音
+const padEls = [];
+
+SCALES.forEach((sc, i) => {
+  const b = document.createElement('button');
+  b.className = 'scale-btn';
+  b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+  b.innerHTML = '<span class="sn">' + sc.name + '</span><span class="sd">' + sc.disp + '</span>';
+  b.addEventListener('click', () => {
+    scaleIndex = i;
+    scaleRow.querySelectorAll('.scale-btn').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true');
+    applyScale();
+    if (drone) { stopDrone(); startDrone(); }   // ルートが変わったらドローンも移調
+  });
+  scaleRow.appendChild(b);
+});
+
+// パッド生成（8個固定・中身はスケールで差し替え）
+for (let i = 0; i < 8; i++) {
+  const p = document.createElement('div');
+  p.className = 'pad'; p.tabIndex = 0;
+  p.setAttribute('role', 'button');
+  const down = () => { if (padNotes[i] === undefined) return; p.classList.add('pdown'); voiceOn(padNotes[i]); markPiano(padNotes[i], true); };
+  const up = () => { if (padNotes[i] === undefined) return; p.classList.remove('pdown'); voiceOff(padNotes[i]); markPiano(padNotes[i], false); };
+  p.addEventListener('pointerdown', (e) => { e.preventDefault(); down(); });
+  p.addEventListener('pointerup', up);
+  p.addEventListener('pointerleave', up);
+  p.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); down(); } });
+  p.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') up(); });
+  p._down = down; p._up = up;
+  padEls.push(p);
+  padsEl.appendChild(p);
+}
+function markPiano(n, on) {
+  if (pianoKeyEls[n]) pianoKeyEls[n].classList.toggle('pdown', on);
+}
+
+function applyScale() {
+  const sc = SCALES[scaleIndex];
+  scaleDesc.innerHTML = sc.desc;
+  padNotes = sc.notes.slice(0, 8);
+  const pcs = new Set(sc.notes.map(n => n % 12));
+  const bluePcs = new Set(sc.blue.map(n => n % 12));
+  // ピアノのハイライト更新
+  Object.keys(pianoKeyEls).forEach(k => {
+    const n = parseInt(k);
+    const el = pianoKeyEls[n];
+    el.classList.remove('member', 'root', 'blue-note');
+    const pc = n % 12;
+    if (bluePcs.has(pc)) el.classList.add('blue-note');
+    else if (pc === sc.rootPc) el.classList.add('root');
+    else if (pcs.has(pc)) el.classList.add('member');
+  });
+  // パッド更新
+  padEls.forEach((p, i) => {
+    const n = padNotes[i];
+    p.classList.toggle('blue-pad', sc.blue.includes(n));
+    p.innerHTML = '<span class="kc">' + KEY_CHARS[i] + '</span><span class="nn">' +
+      NOTE_NAMES[n % 12] + Math.floor(n / 12 - 1) + '・第' + ((i % (padNotes.length)) + 1) + '音</span>';
+  });
+  droneBtn.textContent = '◉ ルート音ドローン（' + NOTE_NAMES[sc.rootPc] + '） ON/OFF';
+}
+applyScale();
+
+// =====================================================================
+// キーボード入力（A〜K ＝ パッド1〜8）
+// =====================================================================
+const keyToPad = {};
+KEY_CHARS.forEach((c, i) => keyToPad[c.toLowerCase()] = i);
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  const t = e.target;
+  if (t && (t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['range', 'checkbox', 'radio', 'button'].includes(t.type)))) return;
+  const i = keyToPad[e.key.toLowerCase()];
+  if (i !== undefined) { e.preventDefault(); padEls[i]._down(); }
+});
+document.addEventListener('keyup', (e) => {
+  const i = keyToPad[e.key.toLowerCase()];
+  if (i !== undefined) padEls[i]._up();
+});
+window.addEventListener('blur', () => { padEls.forEach(p => p._up()); });
+</script>
+</body>
+</html>

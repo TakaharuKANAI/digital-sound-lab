@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tone.js マルチトラックデモ — 3曲切り替え</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<style>
+  :root { --ink:#1F2430; --muted:#5C6270; --card:#F2F4F8; --border:#D8DCE4; --accent:#0D9488; --orange:#D97706; --mono:"SFMono-Regular","Consolas","Menlo",monospace; --jp:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:var(--jp); color:var(--ink); background:#fff; line-height:1.7; }
+  .wrap { padding:40px 24px 60px; max-width:980px; margin:0 auto; }
+  h1 { font-size:24px; font-weight:800; margin-bottom:6px; }
+  .sub { color:var(--accent); font-size:14px; font-style:italic; margin-bottom:20px; }
+  button { font-family:var(--jp); font-size:14px; font-weight:700; padding:10px 22px; border-radius:10px; border:2px solid var(--accent); background:var(--accent); color:#fff; cursor:pointer; }
+  button[aria-pressed="true"] { background:var(--orange); border-color:var(--orange); }
+  button:active { transform:translateY(1px); }
+  button:disabled { opacity:.5; cursor:wait; }
+
+  .songs { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; }
+  @media (max-width:640px){ .songs{ grid-template-columns:1fr; } }
+  .song-btn { border:2px solid var(--border); border-radius:12px; background:#fff; padding:12px 10px; text-align:left; cursor:pointer; font-family:var(--jp); }
+  .song-btn .st { font-size:14px; font-weight:800; color:var(--ink); display:block; }
+  .song-btn .ss { font-size:11.5px; color:var(--muted); }
+  .song-btn[aria-pressed="true"] { border-color:var(--accent); background:#E6F7F5; }
+  .song-btn[aria-pressed="true"] .st { color:var(--accent); }
+
+  .seq { margin-top:16px; background:var(--card); border:1px solid var(--border); border-radius:14px; padding:18px 16px; }
+  .bar-heads { display:flex; margin-left:168px; gap:2px; margin-bottom:4px; }
+  .bar-heads span { flex:1; font-family:var(--mono); font-size:10px; color:var(--muted); text-align:left; padding-left:2px; border-left:2px solid var(--border); }
+  .trk { display:flex; align-items:center; gap:8px; margin-top:8px; }
+  .trk-head { width:160px; flex:none; display:flex; align-items:center; gap:6px; }
+  .trk-name { font-size:12px; font-weight:800; flex:1; }
+  .mute { width:26px; height:26px; padding:0; font-size:11px; border-radius:7px; border:2px solid var(--border); background:#fff; color:var(--muted); flex:none; }
+  .mute[aria-pressed="true"] { background:#3A3F52; border-color:#3A3F52; color:#fff; }
+  .wavbtn { height:26px; padding:0 6px; font-size:9px; border-radius:7px; border:2px solid var(--border); background:#fff; color:var(--accent); flex:none; font-weight:700; }
+  .strip { display:grid; grid-template-columns:repeat(32, 1fr); gap:2px; flex:1; }
+  .cell { height:30px; border-radius:4px; background:#fff; border:1px solid var(--border); font-family:var(--mono); font-size:8px; font-weight:700; display:flex; align-items:center; justify-content:center; color:#fff; overflow:hidden; }
+  .cell:nth-child(4n+1) { border-left-color:#C6CBD8; }
+  .cell:nth-child(16n+1) { border-left-width:2px; border-left-color:#9AA2B5; }
+  .cell.now { outline:2px solid var(--orange); outline-offset:-1px; }
+  .cell.ghost { opacity:.45; }
+  .trk.muted .cell.on { opacity:0.25; }
+
+  pre { margin-top:24px; background:#101623; color:#D7E4E2; font-family:var(--mono); font-size:12px; padding:16px; border-radius:12px; overflow:auto; line-height:1.6; }
+  .note-text { font-size:13px; color:var(--muted); margin-top:14px; }
+  .note-text b { color:var(--ink); }
+</style>
+</head>
+<body>
+<nav style="position:sticky;top:0;z-index:70;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid #D8DCE4;padding:9px 24px;font-family:sans-serif;font-size:13.5px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+  <a href="./index.html" style="font-weight:700;color:#1F2430;text-decoration:none;margin-right:8px;">🎛 触って理解するデジタル音源</a>
+  <a href="./midi.html" style="color:#2563EB;text-decoration:none;font-weight:400;opacity:.75;">01 MIDI</a>
+  <a href="./synth.html" style="color:#0D9488;text-decoration:none;font-weight:400;opacity:.75;">02 シンセ</a>
+  <a href="./sampler.html" style="color:#B85348;text-decoration:none;font-weight:400;opacity:.75;">03 サンプラー</a>
+  <a href="./scale.html" style="color:#7C3AED;text-decoration:none;font-weight:400;opacity:.75;">EX1 スケール</a>
+  <a href="./track.html" style="color:#0F766E;text-decoration:none;font-weight:800;border-bottom:2.5px solid #0F766E;">EX2 トラック</a>
+</nav>
+
+<div class="wrap">
+<h1>Tone.js マルチトラックデモ</h1>
+<p class="sub">16分音符グリッド × 2小節ループ ── シンコペーション・サイドチェイン・ブレイク構成</p>
+
+<div class="songs" id="songs"></div>
+
+<button id="play" aria-pressed="false">▶ 再生 / 停止</button>
+
+<div class="seq" style="margin-top:12px; padding:14px 16px;">
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+    <div>
+      <label style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700;">パフォーマンスFX①：マスターフィルター（＝CC#74 ブライトネス） <span style="font-family:var(--mono); color:var(--accent);" id="fxCutVal">OPEN</span></label>
+      <input type="range" id="fxCut" min="0" max="1" step="0.005" value="1" style="width:100%; accent-color:var(--accent); height:26px;">
+      <div style="font-size:11px; color:var(--muted);">左に絞ると全体がこもり、開くと解放される。DJの「フィルター落とし→ブレイクで開放」がこれ1本</div>
+    </div>
+    <div>
+      <label style="display:flex; justify-content:space-between; font-size:12.5px; font-weight:700;">パフォーマンスFX②：リードのディレイ量 <span style="font-family:var(--mono); color:var(--accent);" id="fxDlyVal">0.32</span></label>
+      <input type="range" id="fxDly" min="0" max="0.65" step="0.01" value="0.32" style="width:100%; accent-color:var(--accent); height:26px;">
+      <div style="font-size:11px; color:var(--muted);">上げるとこだまが増えて空間が滲む。センサー値をここに繋げば「質感を演奏する」インタラクションになる</div>
+    </div>
+  </div>
+</div>
+
+<div class="seq">
+  <div style="display:flex; margin-bottom:6px;">
+    <div style="width:160px; flex:none; font-size:11px; font-weight:800; color:var(--accent);">▼ トラック<span style="font-weight:400; color:var(--muted);">（楽器の担当列）</span></div>
+    <div style="flex:1; font-size:11px; font-weight:800; color:var(--accent); padding-left:10px;">▶ フレーズ<span style="font-weight:400; color:var(--muted);">（2小節の音の並び。これがループして曲になる）</span></div>
+  </div>
+  <div class="bar-heads"><span>1小節目</span><span>2小節目</span></div>
+  <div id="tracks"></div>
+</div>
+
+<div class="seq" style="margin-top:12px; padding:14px 18px; font-size:12.5px;">
+  <b style="color:var(--accent);">用語の整理</b> ── 曲を「横＝時間、縦＝パート」の長方形と考えると：
+  <b>トラック</b>＝縦に切った1列（上の各行。編集できる記号データ）／
+  <b>フレーズ</b>＝横に切った短いまとまり（各行に入っている2小節の配列）／
+  <b>ステム</b>＝トラックを音声ファイルに焼き固めたもの（「STEM」ボタンの出力）。
+  料理なら <b>トラック＝コンロの上の鍋</b>（まだ調整できる）、<b>ステム＝タッパーに詰めた完成品</b>（持ち運べるが再調理不可）、<b>フレーズ＝レシピの1手順</b>。
+</div>
+
+<p class="note-text"><b>「M」でトラックをミュート、「STEM(.wav)」でそのトラックをステム（パート別に焼き固めたWAV）として書き出し。</b>ミュートで抜き差しする遊びが「ステム方式」のインタラクション、STEMボタンの出力を実作品で再生するのがその実装。薄いマス＝ゴーストノート（弱打）、ハイハットの「O」＝オープンハット、「R」＝32分ロール。<b>4周ごとにブレイク（ドラム抜き）→スネアの煽り→復帰</b>のアレンジが自動で入る。</p>
+<button id="mixExport" style="margin-top:4px;">⬇ ミックスを書き出し（全ステムを混ぜた完成形・4周分）</button>
+
+<pre id="code"></pre>
+<p class="note-text"><b>「無難なBGM」から抜けるための処方：</b>①グリッドを16分に上げる（8分グリッドではファンクは物理的に作れない）、②裏拍にベースを置く＝シンコペーション、③サイドチェイン＝キックの瞬間にパッドとベースを凹ませて「ポンピング」を作る、④引き算のアレンジ＝4周目にドラムを抜いて緊張→復帰で解放、⑤和音を三和音でなくm9やsus系で積む。</p>
+</div>
+
+<script>
+"use strict";
+const N = null;
+const G = 'g';   // ゴーストノート（弱打）
+const O = 'o';   // オープンハット
+const R = 'r';   // 32分ロール
+
+// =====================================================================
+// 曲データ（16分音符 × 32ステップ ＝ 2小節ループ）
+// =====================================================================
+const SONGS = [
+  {
+    id: 'techno', name: 'ダークテクノ', scale: 'Aナチュラルマイナー',
+    bpm: 124, key: 'Am-techno', swing: 0, pump: true,
+    bassType: 'saw', bassDur: '16n', padDur: '2m',
+    padNames: { 0: 'Am9' },
+    patterns: {
+      drumsKick: [
+        'x', N, N, N, 'x', N, N, N,  'x', N, N, N, 'x', N, N, N,
+        'x', N, N, N, 'x', N, N, N,  'x', N, N, N, 'x', N, N, N,
+      ],
+      drumsSnare: [
+        N, N, N, N,  'x', N, N, N,  N, N, N, N,  'x', N, N, G,
+        N, N, N, N,  'x', N, N, N,  N, N, N, N,  'x', N, G, N,
+      ],
+      drumsHat: [
+        N, N, O, 'x',  N, N, O, N,  N, N, O, 'x',  N, N, O, N,
+        N, N, O, 'x',  N, N, O, N,  N, N, O, 'x',  N, 'x', O, 'x',
+      ],
+      bass: [
+        N, N, "A1", N,  N, N, "A1", "A2",  N, N, "A1", N,  N, "G1", "A1", N,
+        N, N, "A1", N,  N, N, "A1", "A2",  N, N, "C2", N,  N, "B1", "A1", "G1",
+      ],
+      lead: [
+        N, N, N, N,  N, N, "E5", N,  N, N, N, N,  N, N, N, N,
+        N, N, N, N,  N, N, "D5", N,  N, N, N, N,  N, N, "C5", N,
+      ],
+      pad: [
+        ["A2","C3","E3","G3","B3"], N,N,N,N,N,N,N,  N,N,N,N,N,N,N,N,
+        N,N,N,N,N,N,N,N,  N,N,N,N,N,N,N,N,
+      ],
+    },
+  },
+  {
+    id: 'lofi', name: 'ローファイ・ヒップホップ', scale: 'Cメジャー・ダイアトニック（白鍵）',
+    bpm: 82, key: 'C-lofi', swing: 0.3, pump: false,
+    bassType: 'sub', bassDur: '8n', padDur: '1m',
+    padNames: { 0: 'Dm9', 16: 'G9' },
+    patterns: {
+      drumsKick: [
+        'x', N, N, N,  N, N, N, 'x',  N, N, 'x', N,  N, N, N, N,
+        'x', N, N, N,  N, N, 'x', N,  N, N, 'x', N,  N, N, N, N,
+      ],
+      drumsSnare: [
+        N, N, N, N,  'x', N, N, N,  N, N, N, G,  'x', N, N, N,
+        N, N, N, N,  'x', N, N, N,  N, N, N, N,  'x', N, N, G,
+      ],
+      drumsHat: [
+        'x', N, 'x', N,  'x', N, 'x', 'x',  'x', N, 'x', N,  'x', N, 'x', N,
+        'x', N, 'x', N,  'x', N, 'x', N,  'x', N, 'x', 'x',  'x', N, O, N,
+      ],
+      bass: [
+        "D2", N, N, N,  N, N, N, "D2",  N, N, "A1", N,  N, N, "C2", N,
+        "G1", N, N, N,  N, N, N, "G1",  N, N, "B1", N,  N, N, "D2", N,
+      ],
+      lead: [
+        N, N, "A4", N,  N, "C5", N, N,  N, N, "E5", N,  "D5", N, N, N,
+        N, N, "B4", N,  N, "D5", N, N,  "C5", N, "A4", N,  N, "G4", N, N,
+      ],
+      pad: [
+        ["D3","F3","A3","C4","E4"], N,N,N,N,N,N,N,  N,N,N,N,N,N,N,N,
+        ["G2","B2","D3","F3","A3"], N,N,N,N,N,N,N,  N,N,N,N,N,N,N,N,
+      ],
+    },
+  },
+  {
+    id: 'phonk', name: 'フォンク（ハーフタイム）', scale: 'Cマイナーペンタ（C E♭ F G B♭）',
+    bpm: 140, key: 'Cm-phonk', swing: 0, pump: false,
+    bassType: 'sub', bassDur: '4n.', padDur: '1m',
+    padNames: { 0: 'Cm7', 16: 'F7sus' },
+    patterns: {
+      drumsKick: [
+        'x', N, N, N,  N, N, N, N,  N, N, 'x', N,  N, N, N, N,
+        'x', N, N, N,  N, N, 'x', N,  N, 'x', N, N,  N, N, N, N,
+      ],
+      drumsSnare: [
+        N, N, N, N,  N, N, N, N,  'x', N, N, N,  N, N, N, N,
+        N, N, N, N,  N, N, N, N,  'x', N, N, N,  N, N, G, N,
+      ],
+      drumsHat: [
+        'x', N, 'x', N,  'x', N, R, N,  'x', N, 'x', N,  'x', 'x', 'x', N,
+        'x', N, 'x', N,  'x', N, 'x', N,  'x', N, R, N,  'x', N, 'x', 'x',
+      ],
+      bass: [
+        "C1", N, N, N,  N, N, N, N,  N, N, "C1", N,  N, N, N, N,
+        "D#1", N, N, N,  N, N, "F1", N,  N, "G1", N, N,  N, N, "C1", N,
+      ],
+      lead: [
+        N, N, N, N,  "G5", N, N, N,  N, N, N, N,  "D#5", N, N, N,
+        N, N, "F5", N,  N, N, N, N,  "C5", N, N, N,  N, N, N, N,
+      ],
+      pad: [
+        ["C3","D#3","G3","A#3"], N,N,N,N,N,N,N,  N,N,N,N,N,N,N,N,
+        ["F3","G3","A#3","D#4"], N,N,N,N,N,N,N,  N,N,N,N,N,N,N,N,
+      ],
+    },
+  },
+];
+let songIndex = 0;
+function song() { return SONGS[songIndex]; }
+
+// =====================================================================
+// 音源ビルダー（ライブ再生とWAV書き出しで共用）
+// =====================================================================
+const rnd = (amt) => (Math.random() - 0.5) * amt;
+
+// パフォーマンスFXの現在値（ライブ・書き出し共通で参照）
+const fxState = { cutoffPos: 1, delayWet: 0.32 };
+const cutoffHz = (pos) => 120 * Math.pow(18000 / 120, pos);   // 対数マッピング
+
+function makeBus() {
+  // マスターフィルター（全トラックが通る＝CC#74的なブライトネス制御）
+  const master = new Tone.Filter(cutoffHz(fxState.cutoffPos), 'lowpass');
+  master.Q.value = 0.9;
+  master.toDestination();
+  // サイドチェイン用ダッキングゲイン（パッドとベースが通る）
+  const duck = new Tone.Gain(1).connect(master);
+  return { duck, out: master };
+}
+
+const BUILDERS = {
+  drumsKick(bus) {
+    const s = new Tone.MembraneSynth({
+      octaves: 6, pitchDecay: 0.045,
+      envelope: { attack: 0.001, decay: 0.4, sustain: 0 },
+    }).connect(bus.out);
+    s.volume.value = -3;
+    return {
+      play(time, v, i, loop, sg) {
+        s.triggerAttackRelease('C1', '8n', time, i % 16 === 0 ? 0.98 : 0.85);
+        if (sg.pump) {
+          // キックの瞬間にダッキング → ポンピング
+          bus.duck.gain.cancelScheduledValues(time);
+          bus.duck.gain.setValueAtTime(0.18, time);
+          bus.duck.gain.setTargetAtTime(1, time + 0.03, 0.1);
+        }
+      },
+    };
+  },
+  drumsSnare(bus) {
+    const rev = new Tone.Reverb({ decay: 1.3, wet: 0.22 }).connect(bus.out);
+    const s = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.15, sustain: 0 },
+    }).connect(rev);
+    s.volume.value = -8;
+    return {
+      ready: rev.ready,
+      play(time, v) {
+        s.triggerAttackRelease('8n', time, v === G ? 0.25 : 0.92);
+      },
+      fill(time, k) {
+        s.triggerAttackRelease('16n', time, 0.3 + k * 0.17);
+      },
+    };
+  },
+  drumsHat(bus) {
+    const f = new Tone.Filter(8500, 'highpass').connect(bus.out);
+    const closed = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.03, sustain: 0 },
+    }).connect(f);
+    closed.volume.value = -16;
+    const open = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.22, sustain: 0 },
+    }).connect(f);
+    open.volume.value = -19;
+    return {
+      play(time, v, i, loop, sg) {
+        const t = time + rnd(0.007);
+        if (v === O) { open.triggerAttackRelease('8n', t, 0.6); return; }
+        if (v === R) {
+          const s32 = 60 / sg.bpm / 8;
+          for (let k = 0; k < 4; k++) closed.triggerAttackRelease('32n', time + s32 * k, 0.3 + k * 0.15);
+          return;
+        }
+        const vel = (i % 4 === 0) ? 0.8 : 0.4;
+        closed.triggerAttackRelease('16n', t, Math.max(0.1, vel + rnd(0.12)));
+      },
+    };
+  },
+  bass(bus) {
+    // saw: テクノ用（歪み+フィルターEnv） / sub: サイン波サブベース（グライド付き）
+    const drive = new Tone.Distortion(0.2).connect(bus.duck);
+    drive.wet.value = 0.3;
+    const saw = new Tone.MonoSynth({
+      oscillator: { type: 'sawtooth' },
+      filter: { frequency: 400, Q: 4, type: 'lowpass' },
+      envelope: { attack: 0.003, decay: 0.12, sustain: 0.25, release: 0.08 },
+      filterEnvelope: { attack: 0.001, decay: 0.1, sustain: 0.2, release: 0.08, baseFrequency: 150, octaves: 2.4 },
+    }).connect(drive);
+    saw.volume.value = -7;
+    const sub = new Tone.MonoSynth({
+      oscillator: { type: 'sine' },
+      portamento: 0.07,
+      envelope: { attack: 0.01, decay: 0.3, sustain: 0.8, release: 0.25 },
+      filterEnvelope: { attack: 0.001, decay: 0.1, sustain: 1, baseFrequency: 400, octaves: 0 },
+    }).connect(bus.duck);
+    sub.volume.value = -4;
+    return {
+      play(time, v, i, loop, sg) {
+        const syn = sg.bassType === 'sub' ? sub : saw;
+        syn.triggerAttackRelease(v, sg.bassDur, time, i % 16 === 0 ? 0.95 : 0.8);
+      },
+    };
+  },
+  lead(bus) {
+    const rev = new Tone.Reverb({ decay: 3.2, wet: 0.35 }).connect(bus.out);
+    const dly = new Tone.FeedbackDelay('8n.', 0.38).connect(rev);
+    dly.wet.value = fxState.delayWet;
+    const vib = new Tone.Vibrato(5.2, 0.1).connect(dly);
+    const s = new Tone.Synth({
+      oscillator: { type: 'fattriangle', count: 3, spread: 18 },
+      envelope: { attack: 0.015, decay: 0.2, sustain: 0.4, release: 0.4 },
+    }).connect(vib);
+    s.volume.value = -13;
+    return {
+      ready: rev.ready,
+      dly,
+      play(time, v) {
+        s.triggerAttackRelease(v, '8n', time + rnd(0.008), 0.75 + rnd(0.15));
+      },
+    };
+  },
+  pad(bus) {
+    const rev = new Tone.Reverb({ decay: 5, wet: 0.5 }).connect(bus.duck);
+    const flt = new Tone.Filter(1300, 'lowpass').connect(rev);
+    const s = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'fatsawtooth', count: 3, spread: 28 },
+      envelope: { attack: 0.4, decay: 0.5, sustain: 0.6, release: 2.5 },
+    }).connect(flt);
+    s.volume.value = -20;
+    return {
+      ready: rev.ready,
+      play(time, chord, i, loop, sg) {
+        chord.forEach((note, k) => {
+          s.triggerAttackRelease(note, sg.padDur, time + k * 0.02, 0.7);
+        });
+      },
+    };
+  },
+};
+
+// 1ステップ分の発音（アレンジ演出込み・ライブとWAVで共用）
+// 4周構成: 1〜3周目=フル / 4周目=ブレイク(ハット・スネア抜き)+終盤スネアの煽り
+function playStep(plays, pats, i, loop, time, sg, mutesMap) {
+  const brk = loop % 4 === 3;
+  const order = ['drumsKick', 'drumsSnare', 'drumsHat', 'bass', 'lead', 'pad'];
+  order.forEach(id => {
+    if (mutesMap && mutesMap[id]) return;
+    if (!plays[id]) return;
+    if (brk && (id === 'drumsHat' || id === 'drumsSnare')) return;   // 引き算
+    const v = pats[id][i];
+    if (v) plays[id].play(time, v, i, loop, sg);
+  });
+  // ブレイク終盤: スネア4連の煽り → 次周のフルで解放
+  if (brk && i >= 24 && i % 2 === 0 && plays.drumsSnare && !(mutesMap && mutesMap.drumsSnare)) {
+    plays.drumsSnare.fill(time, (i - 24) / 2);
+  }
+}
+
+// =====================================================================
+// トラック表示
+// =====================================================================
+const isMark = (v) => v === 'x' || v === G || v === O || v === R;
+const TRACKS = [
+  { id: 'drumsHat',   name: 'ハイハット', color: '#94A3B8', label: (v) => v === O ? 'O' : (v === R ? 'R' : '') },
+  { id: 'drumsSnare', name: 'スネア',     color: '#F472B6', label: () => '' },
+  { id: 'drumsKick',  name: 'キック',     color: '#F59E0B', label: () => '' },
+  { id: 'bass',       name: 'ベース',     color: '#0D9488', label: (v) => isMark(v) ? '' : v },
+  { id: 'lead',       name: 'リード',     color: '#7C3AED', label: (v) => isMark(v) ? '' : v },
+  { id: 'pad',        name: 'パッド',     color: '#60A5FA', label: (v, i) => song().padNames[i] || '' },
+];
+const mutes = {};
+const cellEls = {};
+
+const tracksEl = document.getElementById('tracks');
+TRACKS.forEach(tr => {
+  mutes[tr.id] = false;
+  const row = document.createElement('div');
+  row.className = 'trk';
+  const head = document.createElement('div');
+  head.className = 'trk-head';
+  const mb = document.createElement('button');
+  mb.className = 'mute';
+  mb.textContent = 'M';
+  mb.setAttribute('aria-pressed', 'false');
+  mb.setAttribute('aria-label', tr.name + ' ミュート');
+  mb.addEventListener('click', () => {
+    mutes[tr.id] = !mutes[tr.id];
+    mb.setAttribute('aria-pressed', String(mutes[tr.id]));
+    row.classList.toggle('muted', mutes[tr.id]);
+  });
+  const nm = document.createElement('span');
+  nm.className = 'trk-name';
+  nm.textContent = tr.name;
+  const wb = document.createElement('button');
+  wb.className = 'wavbtn';
+  wb.textContent = 'STEM(.wav)';
+  wb.setAttribute('aria-label', tr.name + ' トラックをステム（パート別音声ファイル）として書き出し');
+  wb.addEventListener('click', () => exportTrack(tr.id, wb));
+  head.appendChild(mb);
+  head.appendChild(nm);
+  head.appendChild(wb);
+  row.appendChild(head);
+
+  const strip = document.createElement('div');
+  strip.className = 'strip';
+  cellEls[tr.id] = [];
+  for (let i = 0; i < 32; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell';
+    cellEls[tr.id].push(c);
+    strip.appendChild(c);
+  }
+  row.appendChild(strip);
+  tracksEl.appendChild(row);
+});
+
+function renderGrid() {
+  TRACKS.forEach(tr => {
+    const pat = song().patterns[tr.id];
+    cellEls[tr.id].forEach((c, i) => {
+      const v = pat[i];
+      c.classList.remove('on', 'now', 'ghost');
+      c.style.background = '';
+      c.style.borderColor = '';
+      c.textContent = '';
+      if (v) {
+        c.classList.add('on');
+        if (v === G) c.classList.add('ghost');
+        c.style.background = tr.color;
+        c.style.borderColor = tr.color;
+        c.textContent = tr.label(v, i);
+      }
+    });
+  });
+}
+
+// =====================================================================
+// 曲セレクター
+// =====================================================================
+const songsEl = document.getElementById('songs');
+SONGS.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'song-btn';
+  b.setAttribute('aria-pressed', i === 0 ? 'true' : 'false');
+  b.innerHTML = '<span class="st">' + s.name + '</span><span class="ss">' + s.scale + '・BPM ' + s.bpm + (s.pump ? '・サイドチェイン' : '') + '</span>';
+  b.addEventListener('click', () => {
+    songIndex = i;
+    songsEl.querySelectorAll('.song-btn').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    b.setAttribute('aria-pressed', 'true');
+    gStep = 0;
+    Tone.Transport.bpm.value = song().bpm;
+    Tone.Transport.swing = song().swing;
+    Tone.Transport.swingSubdivision = '16n';
+    renderGrid();
+  });
+  songsEl.appendChild(b);
+});
+renderGrid();
+
+// =====================================================================
+// サンプルコード表示
+// =====================================================================
+document.getElementById('code').textContent =
+`// かっこよさの実装（抜粋）
+
+// サイドチェイン: キックの瞬間にパッドとベースを凹ませる
+// (パッドとベースは duck ゲインを経由して出力されている)
+kick.triggerAttackRelease("C1", "8n", time);
+duck.gain.setValueAtTime(0.18, time);              // ドンッと同時に沈み
+duck.gain.setTargetAtTime(1, time + 0.03, 0.1);    // フワッと戻る = ポンピング
+
+// シンコペーション: ベースを裏拍(16分の3つ目など)に置く
+const bass = [null, null, "A1", null,  null, null, "A1", "A2", /* ... */];
+
+// 引き算のアレンジ: 4周目はドラムを抜いて緊張を作る
+const brk = loop % 4 === 3;
+if (brk && (id === "hat" || id === "snare")) return;   // 鳴らさない
+
+// ハイハットの32分ロール("R"マス): 4連打で駆け上がる
+for (let k = 0; k < 4; k++)
+  hat.triggerAttackRelease("32n", time + s32 * k, 0.3 + k * 0.15);`;
+
+// =====================================================================
+// 再生
+// =====================================================================
+let built = false, playing = false, gStep = 0;
+let liveInstances = null, liveBus = null;
+const playBtn = document.getElementById('play');
+
+// --- パフォーマンスFXスライダー ---
+const fxCut = document.getElementById('fxCut');
+const fxCutVal = document.getElementById('fxCutVal');
+const fxDly = document.getElementById('fxDly');
+const fxDlyVal = document.getElementById('fxDlyVal');
+fxCut.addEventListener('input', () => {
+  fxState.cutoffPos = parseFloat(fxCut.value);
+  const hz = cutoffHz(fxState.cutoffPos);
+  fxCutVal.textContent = fxState.cutoffPos > 0.98 ? 'OPEN' : Math.round(hz) + ' Hz';
+  if (liveBus) liveBus.out.frequency.setTargetAtTime(hz, Tone.now(), 0.03);
+});
+fxDly.addEventListener('input', () => {
+  fxState.delayWet = parseFloat(fxDly.value);
+  fxDlyVal.textContent = fxState.delayWet.toFixed(2);
+  if (liveInstances && liveInstances.lead && liveInstances.lead.dly) {
+    liveInstances.lead.dly.wet.setTargetAtTime(fxState.delayWet, Tone.now(), 0.05);
+  }
+});
+
+function buildLive() {
+  const bus = makeBus();
+  liveBus = bus;
+  liveInstances = {};
+  TRACKS.forEach(tr => { liveInstances[tr.id] = BUILDERS[tr.id](bus); });
+  Tone.Transport.scheduleRepeat((time) => {
+    const i = gStep % 32;
+    const loop = Math.floor(gStep / 32);
+    const sg = song();
+    Tone.Draw.schedule(() => {
+      TRACKS.forEach(tr => {
+        cellEls[tr.id].forEach((el, j) => el.classList.toggle('now', j === i));
+      });
+    }, time);
+    playStep(liveInstances, sg.patterns, i, loop, time, sg, mutes);
+    gStep++;
+  }, '16n');
+  Tone.Transport.bpm.value = song().bpm;
+  Tone.Transport.swing = song().swing;
+  Tone.Transport.swingSubdivision = '16n';
+}
+
+playBtn.addEventListener('click', async () => {
+  await Tone.start();
+  if (!built) { buildLive(); built = true; }
+  if (!playing) {
+    Tone.Transport.start();
+    playing = true;
+    playBtn.setAttribute('aria-pressed', 'true');
+  } else {
+    Tone.Transport.pause();
+    playing = false;
+    playBtn.setAttribute('aria-pressed', 'false');
+    TRACKS.forEach(tr => cellEls[tr.id].forEach(el => el.classList.remove('now')));
+  }
+});
+
+// =====================================================================
+// WAV書き出し（同じBUILDERSをオフラインで使用・ブレイク込み4周分）
+// =====================================================================
+function audioBufferToWav(buffer) {
+  const numCh = buffer.numberOfChannels;
+  const rate = buffer.sampleRate;
+  const frames = buffer.length;
+  const blockAlign = numCh * 2;
+  const dataSize = frames * blockAlign;
+  const ab = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(ab);
+  const wStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  wStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  wStr(8, 'WAVE');
+  wStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numCh, true);
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  wStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+  const chans = [];
+  for (let c = 0; c < numCh; c++) chans.push(buffer.getChannelData(c));
+  let off = 44;
+  for (let i = 0; i < frames; i++) {
+    for (let c = 0; c < numCh; c++) {
+      const x = Math.max(-1, Math.min(1, chans[c][i]));
+      view.setInt16(off, x < 0 ? x * 0x8000 : x * 0x7FFF, true);
+      off += 2;
+    }
+  }
+  return new Blob([ab], { type: 'audio/wav' });
+}
+
+const FILE_NAMES = {
+  drumsKick: 'kick', drumsSnare: 'snare', drumsHat: 'hihat',
+  bass: 'bass', lead: 'lead', pad: 'pad', mix: 'mix',
+};
+
+async function renderAndDownload(ids, fileBase, btn) {
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '書き出し中…';
+  try {
+    const sg = song();
+    const loopSec = 2 * 4 * 60 / sg.bpm;             // 2小節
+    const dur = loopSec * 4 + 2.2;                   // 4周（ブレイク込み）＋余韻
+    const pats = sg.patterns;
+    const rendered = await Tone.Offline(async ({ transport }) => {
+      const bus = makeBus();
+      const plays = {};
+      ids.forEach(id => { plays[id] = BUILDERS[id](bus); });
+      await Promise.all(ids.map(id => plays[id].ready || Promise.resolve()));
+      let step = 0;
+      transport.scheduleRepeat((time) => {
+        const i = step % 32;
+        const loop = Math.floor(step / 32);
+        if (step < 128) playStep(plays, pats, i, loop, time, sg, null);
+        step++;
+      }, '16n');
+      transport.bpm.value = sg.bpm;
+      transport.swing = sg.swing;
+      transport.swingSubdivision = '16n';
+      transport.start(0.05);
+    }, dur);
+    const blob = audioBufferToWav(rendered.get());
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileBase + '_' + sg.key + '_' + sg.bpm + 'bpm.wav';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) {
+    alert('書き出しに失敗しました: ' + e.message);
+  }
+  btn.disabled = false;
+  btn.textContent = label;
+}
+
+function exportTrack(id, btn) {
+  renderAndDownload([id], FILE_NAMES[id], btn);
+}
+
+document.getElementById('mixExport').addEventListener('click', (e) => {
+  const ids = TRACKS.map(t => t.id).filter(id => !mutes[id]);
+  if (!ids.length) { alert('全トラックがミュートされています'); return; }
+  renderAndDownload(ids, FILE_NAMES.mix, e.currentTarget);
+});
+</script>
+</body>
+</html>
